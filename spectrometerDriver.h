@@ -6,6 +6,9 @@
  * 
  * /
 ***********************************************************************/
+
+//here's a hidden message for you XOXO
+
 #ifndef SPECDRIVER_H
 #define SPECDRIVER_H
  
