@@ -1,3 +1,5 @@
 BTServer
 log_*.txt
 *.o
+push*
+pull*

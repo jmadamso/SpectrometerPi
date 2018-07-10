@@ -26,6 +26,7 @@ static enum {
     REQUEST_PRESSURE,
     REQUEST_SPECTRA,
     INTEGRATION_TIME,
+    SETTINGS,
     QUIT
 } commands;
 
@@ -111,10 +112,11 @@ int main(int argc, char **argv)
 
     while (running) {
 
-        // prepare a clean buffer and read data from the client
+        // prepare a clean buffer... 
         memset(inBuf, 0, sizeof (inBuf));
-
+        //...and read data from the client into inBuf
         bytes_read = read(client, inBuf, sizeof (inBuf));
+        
         if (bytes_read > 0) {
             printf("received [%s]\n", inBuf);
             fprintf(log, "received [%s]\n", inBuf);
@@ -124,7 +126,9 @@ int main(int argc, char **argv)
             break;
         }
 
+		//big main switch statement here:
         switch (inBuf[0]) {
+			
         case MOTOR_ON:
             sendStringToClient(client, "Turning on motor...\n");
             motor_ON();
@@ -181,6 +185,10 @@ int main(int argc, char **argv)
             setIntegrationTime(time);
 
             break;
+
+		case SETTINGS:
+			//if this command comes, we expect to sync settings
+			break;
 
         case QUIT:
         case 'q':

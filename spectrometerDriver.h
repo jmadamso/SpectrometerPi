@@ -13,7 +13,9 @@
 #define SPECDRIVER_H
 
 
-
+/*setIntegrationTime
+ * Sets the integration time of the spectrometer in MILLISECONDS
+ */
 int setIntegrationTime(int newTime);
 
 

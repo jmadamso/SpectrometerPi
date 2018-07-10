@@ -47,7 +47,6 @@ int setIntegrationTime(int newTime)
     integrationTimeMillisec = newTime;
     if (inited) {
         //seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, integrationTimeMillisec * MILLISEC_TO_MICROSEC);
-
     }
 }
 
@@ -59,7 +58,8 @@ int getSpectrometerReading(int *inBuff)
             exit(-1);
         }
     }
-    seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_READINGS);
+    
+    seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, inbuff, NUM_READINGS);
 
     if (errorCode) {
         printf("Error: problem getting spectrum\n");
