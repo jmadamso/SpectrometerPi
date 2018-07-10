@@ -5,15 +5,15 @@
  * 
  * 
  * /
-***********************************************************************/
+ ***********************************************************************/
 
-//here's a hidden message for you XOXO
+//!! a different secret message <3!!
 
 #ifndef SPECDRIVER_H
 #define SPECDRIVER_H
- 
- 
- 
+
+
+
 int setIntegrationTime(int newTime);
 
 
@@ -42,7 +42,7 @@ void motor_OFF();
  * 
  */
 void LED_ON();
-void LED_OFF() ;
+void LED_OFF();
 
 
 
@@ -53,6 +53,6 @@ int boxcarAverage(int width, double *inputArray, double *outputArray, int numEle
  * 
  */
 int endSession();
- 
+
 
 #endif
