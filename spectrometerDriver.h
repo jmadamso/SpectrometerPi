@@ -13,18 +13,19 @@
 #define SPECDRIVER_H
 
 //specSettings: struct containing spectrometer paramaters and defaults
+
 typedef struct {
-	int numScans; 
-	int timeBetweenScans;
-	int integrationTime;
-	int boxcarWidth;
-	int avgPerScan;
-} specSettings; 
+    int numScans;
+    int timeBetweenScans;
+    int integrationTime;
+    int boxcarWidth;
+    int avgPerScan;
+} specSettings;
 
 /*PrintSpecSettings
  * provides a printout of passed-in specsettings struct
- */ 
-void printSpecSettings(specSettings in); 
+ */
+void printSpecSettings(specSettings in);
 
 
 
