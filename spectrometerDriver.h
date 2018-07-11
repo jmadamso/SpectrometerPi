@@ -34,6 +34,10 @@ void printSpecSettings(specSettings in);
  */
 int setIntegrationTime(int newTime);
 
+/*applySpecSettings
+ * applies parameters from incoming struct to our instance
+ */
+int applySpecSettings(specSettings in);
 
 /*getSpectrometerReading
  * Asks the spectrometer to take a reading, and place the results

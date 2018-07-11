@@ -182,6 +182,7 @@ int main(int argc, char **argv)
             sscanf(&inBuf[1], "%i;%i;%i;%i;%i", &mySpec.numScans, &mySpec.timeBetweenScans,
                     &mySpec.integrationTime, &mySpec.boxcarWidth,
                     &mySpec.avgPerScan);
+            applySpecSettings(mySpec);
             printSpecSettings(mySpec);
             break;
 

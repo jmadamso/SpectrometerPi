@@ -5,8 +5,6 @@
  * 
  * /
 /***********************************************************************/
-
-
 #include "./spectrometerDriver.h"
 #include "api/SeaBreezeWrapper.h"
 
@@ -18,6 +16,8 @@
 
 
 //DEFINES
+//#define SPEC_CONNECTED //uncomment this if spectrometer is usb-connected
+
 #define MILLISEC_TO_MICROSEC 1000
 #define NUM_READINGS 1024 //known for our spectrometer
 #define MAX_INTENSITY 3500
@@ -35,8 +35,8 @@ static int spectrometerIndex = 0;
 static int errorCode = 0;
 static FILE *outputFile;
 static int inited = 0;
-//default integration time 
-static int integrationTimeMillisec = 1000;
+
+static specSettings thisSpec = { 5, 60, 1000, 0, 3 };
 
 static double spectrumArray[NUM_READINGS];
 
@@ -44,19 +44,40 @@ static int Hardware_Init();
 
 int setIntegrationTime(int newTime)
 {
-    integrationTimeMillisec = newTime;
-    if (inited) {
-        //seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, integrationTimeMillisec * MILLISEC_TO_MICROSEC);
+	    if (!inited) {
+        if (Hardware_Init() != 0) {
+            printf("Bad Times at setIntegTime");
+            exit(-1);
+        }
     }
+	
+		#ifdef SPEC_CONNECTED
+        seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, newTime * MILLISEC_TO_MICROSEC);
+        #endif
 }
 
 int applySpecSettings(specSettings in)
 {
-    integrationTimeMillisec = in.integrationTime;
-    if (inited) {
-        //seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, integrationTimeMillisec * MILLISEC_TO_MICROSEC);
-
+	
+	thisSpec.numScans = in.numScans;
+    thisSpec.timeBetweenScans = in.timeBetweenScans;
+    thisSpec.integrationTime = in.integrationTime;
+    thisSpec.boxcarWidth = in.boxcarWidth;
+    thisSpec.avgPerScan = in.avgPerScan;
+	
+    if (!inited) {
+        if (Hardware_Init() != 0) {
+            printf("Bad Times at applySpecSettings");
+            exit(-1);
+        }
     }
+	
+    
+		//update hardware to new integration time
+		#ifdef SPEC_CONNECTED
+        seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, thisSpec.integrationTime * MILLISEC_TO_MICROSEC);
+        #endif
+    
 }
 
 int getSpectrometerReading(int *inBuff)
@@ -67,8 +88,9 @@ int getSpectrometerReading(int *inBuff)
             exit(-1);
         }
     }
-
+	#ifdef SPEC_CONNECTED
     seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_READINGS);
+	#endif
 
     if (errorCode) {
         printf("Error: problem getting spectrum\n");
@@ -149,8 +171,11 @@ int endSession()
 
 static int Hardware_Init()
 {
+	errorCode = 0;
     printf("Opening spectrometer...");
-    //seabreeze_open_spectrometer(spectrometerIndex, &errorCode);
+    #ifdef SPEC_CONNECTED
+    seabreeze_open_spectrometer(spectrometerIndex, &errorCode);
+	#endif
 
     if (errorCode) {
         printf("Could not find device.\n");
@@ -159,8 +184,12 @@ static int Hardware_Init()
     }
     printf("done.\n");
 
-    printf("Setting integration time to %i ms...", integrationTimeMillisec);
-    //seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, integrationTimeMillisec * MILLISEC_TO_MICROSEC);
+    printf("Setting integration time to %i ms...", thisSpec.integrationTime);
+    
+    #ifdef SPEC_CONNECTED
+    seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, thisSpec.integrationTime * MILLISEC_TO_MICROSEC);
+    #endif
+    
     if (errorCode) {
         printf("Unable to set integration time.\n");
         getchar();
