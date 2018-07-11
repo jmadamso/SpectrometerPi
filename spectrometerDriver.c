@@ -50,6 +50,15 @@ int setIntegrationTime(int newTime)
     }
 }
 
+int applySpecSettings(specSettings in)
+{
+    integrationTimeMillisec = in.integrationTime;
+    if (inited) {
+        //seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, integrationTimeMillisec * MILLISEC_TO_MICROSEC);
+        
+    }
+}
+
 int getSpectrometerReading(int *inBuff)
 {
     if (!inited) {
@@ -59,7 +68,7 @@ int getSpectrometerReading(int *inBuff)
         }
     }
     
-    seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, inbuff, NUM_READINGS);
+    seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_READINGS);
 
     if (errorCode) {
         printf("Error: problem getting spectrum\n");
@@ -225,6 +234,14 @@ int boxcarAverage(int width, double *inputArray, double *outputArray, int numEle
     return 1;
 }
 
+void printSpecSettings(specSettings in) {
+	printf("isDefault = %i\n",in.isDefault);
+	printf("numScans = %i\n",in.numScans);
+	printf("timeBetweenScans = %i\n",in.timeBetweenScans);
+	printf("integrationTime = %i\n",in.integrationTime);
+	printf("boxcarWidth = %i\n",in.boxcarWidth);
+	printf("avgPerScan = %i\n",in.avgPerScan);
+}
 
 
 

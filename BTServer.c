@@ -17,8 +17,11 @@
 int sendStringToClient(int Client, char *string);
 void spectraTest(int client);
 
+
 static FILE *log;
 static int pressureThreadRunning = 0;
+
+
 
 static enum {
     MOTOR_ON = 49,
@@ -29,11 +32,14 @@ static enum {
     SETTINGS,
     QUIT
 } commands;
-
+ 
 int main(int argc, char **argv)
 {
     int i, k;
     int running = 1;
+
+	//isDefault;NumScans;Time between;Integration time; boxcar width; averages
+	specSettings mySpec = {1, 5, 60, 1000, 0, 3};
 
     struct sockaddr_rc loc_addr = {0}, rem_addr = {0};
     char inBuf[1024];
@@ -126,7 +132,7 @@ int main(int argc, char **argv)
             break;
         }
 
-		//big main switch statement here:
+		//big main switch statement here switching on command char:
         switch (inBuf[0]) {
 			
         case MOTOR_ON:
@@ -179,6 +185,7 @@ int main(int argc, char **argv)
                 //subtract off the command char and get the string
                 timeString[i - 1] = inBuf[i];
             }
+            
             timeString[i] = '\0';
             time = atoi(timeString);
             printf("got integration time %d\n", time);
@@ -187,7 +194,14 @@ int main(int argc, char **argv)
             break;
 
 		case SETTINGS:
-			//if this command comes, we expect to sync settings
+			//if this command comes, we expect to sync settings. read them
+			//in from the message to the struct
+			
+			//NumScans;Time between;Integration time; boxcar width; averages
+			sscanf(&inBuf[1],"%i;%i;%i;%i;%i;%i",&mySpec.isDefault,&mySpec.numScans,&mySpec.timeBetweenScans, 
+												&mySpec.integrationTime, &mySpec.boxcarWidth, 
+												&mySpec.avgPerScan);
+			printSpecSettings(mySpec);
 			break;
 
         case QUIT:
@@ -247,4 +261,6 @@ int sendStringToClient(int client, char *string)
     }
 
 }
+
+
 
