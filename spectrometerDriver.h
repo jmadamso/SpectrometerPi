@@ -14,7 +14,6 @@
 
 //specSettings: struct containing spectrometer paramaters and defaults
 typedef struct {
-	int isDefault;
 	int numScans; 
 	int timeBetweenScans;
 	int integrationTime;

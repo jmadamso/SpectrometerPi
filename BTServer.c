@@ -28,7 +28,6 @@ static enum {
     MOTOR_OFF,
     REQUEST_PRESSURE,
     REQUEST_SPECTRA,
-    INTEGRATION_TIME,
     SETTINGS,
     QUIT
 } commands;
@@ -39,7 +38,7 @@ int main(int argc, char **argv)
     int running = 1;
 
 	//isDefault;NumScans;Time between;Integration time; boxcar width; averages
-	specSettings mySpec = {1, 5, 60, 1000, 0, 3};
+	specSettings mySpec = { 5, 60, 1000, 0, 3};
 
     struct sockaddr_rc loc_addr = {0}, rem_addr = {0};
     char inBuf[1024];
@@ -176,29 +175,13 @@ int main(int argc, char **argv)
             //spectraTest(client);
             break;
 
-        case INTEGRATION_TIME:
-            //if this command comes, we expect more bytes containing 
-            //the integration time. un-Stringify them.
-            //consider using sscanf in the future
-
-            for (i = 1; i <= bytes_read; i++) {
-                //subtract off the command char and get the string
-                timeString[i - 1] = inBuf[i];
-            }
-            
-            timeString[i] = '\0';
-            time = atoi(timeString);
-            printf("got integration time %d\n", time);
-            setIntegrationTime(time);
-
-            break;
-
 		case SETTINGS:
 			//if this command comes, we expect to sync settings. read them
-			//in from the message to the struct
+			//in from the message to the struct.
+			//** Reading from &inbuf[1] because 1st char contains the command itself
 			
 			//NumScans;Time between;Integration time; boxcar width; averages
-			sscanf(&inBuf[1],"%i;%i;%i;%i;%i;%i",&mySpec.isDefault,&mySpec.numScans,&mySpec.timeBetweenScans, 
+			sscanf(&inBuf[1],"%i;%i;%i;%i;%i",&mySpec.numScans,&mySpec.timeBetweenScans, 
 												&mySpec.integrationTime, &mySpec.boxcarWidth, 
 												&mySpec.avgPerScan);
 			printSpecSettings(mySpec);

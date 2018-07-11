@@ -235,12 +235,13 @@ int boxcarAverage(int width, double *inputArray, double *outputArray, int numEle
 }
 
 void printSpecSettings(specSettings in) {
-	printf("isDefault = %i\n",in.isDefault);
-	printf("numScans = %i\n",in.numScans);
+	printf("\n print spec settings \n");
+	printf(" ===================\n");
+	printf("numScans         = %i\n",in.numScans);
 	printf("timeBetweenScans = %i\n",in.timeBetweenScans);
-	printf("integrationTime = %i\n",in.integrationTime);
-	printf("boxcarWidth = %i\n",in.boxcarWidth);
-	printf("avgPerScan = %i\n",in.avgPerScan);
+	printf("integrationTime  = %i\n",in.integrationTime);
+	printf("boxcarWidth      = %i\n",in.boxcarWidth);
+	printf("avgPerScan       = %i\n\n",in.avgPerScan);
 }
 
 

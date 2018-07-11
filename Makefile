@@ -3,7 +3,6 @@ BTServer: BTServer.c specDriver.o
 	gcc -W BTServer.c specDriver.o -o BTServer -lbluetooth -lseabreeze -lusb -lwiringPi
 	rm /home/pi/Desktop/BluetoothTesting/BTServer
 	cp BTServer /home/pi/Desktop/BluetoothTesting
-	make clean
 
 specDriver.o: spectrometerDriver.c
 	gcc -c spectrometerDriver.c -o specDriver.o 
