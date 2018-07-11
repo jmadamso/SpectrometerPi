@@ -19,7 +19,6 @@
 //#define SPEC_CONNECTED //uncomment this if spectrometer is usb-connected
 
 #define MILLISEC_TO_MICROSEC 1000
-#define NUM_READINGS 1024 //known for our spectrometer
 #define MAX_INTENSITY 3500
 
 #define BASE 100 //ADC stuff
@@ -38,7 +37,7 @@ static int inited = 0;
 
 static specSettings thisSpec = { 5, 60, 1000, 0, 3 };
 
-static double spectrumArray[NUM_READINGS];
+static double spectrumArray[NUM_WAVELENGTHS];
 
 static int Hardware_Init();
 
@@ -80,7 +79,7 @@ int applySpecSettings(specSettings in)
     
 }
 
-int getSpectrometerReading(int *inBuff)
+int getSpectrometerReading(double *inBuff)
 {
     if (!inited) {
         if (Hardware_Init() != 0) {
@@ -88,9 +87,19 @@ int getSpectrometerReading(int *inBuff)
             exit(-1);
         }
     }
+    
+    int i;
+    for (i = 0; i < NUM_WAVELENGTHS; i++) {
+		spectrumArray[i] = i+1000;
+	}
 	#ifdef SPEC_CONNECTED
-    seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_READINGS);
+    seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_WAVELENGTHS);
 	#endif
+	
+	//copy results to input buffer
+    for (i=0; i<NUM_WAVELENGTHS; i++) {
+		inBuff[i] = spectrumArray[i];
+	}
 
     if (errorCode) {
         printf("Error: problem getting spectrum\n");

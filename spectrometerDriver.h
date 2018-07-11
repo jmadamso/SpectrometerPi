@@ -12,8 +12,10 @@
 #ifndef SPECDRIVER_H
 #define SPECDRIVER_H
 
-//specSettings: struct containing spectrometer paramaters and defaults
+#define NUM_WAVELENGTHS 1024 //known for our spectrometer
 
+
+//specSettings: struct containing spectrometer paramaters and defaults
 typedef struct {
     int numScans;
     int timeBetweenScans;
@@ -43,7 +45,7 @@ int applySpecSettings(specSettings in);
  * Asks the spectrometer to take a reading, and place the results
  * into inBuff
  */
-int getSpectrometerReading(int *inBuff);
+int getSpectrometerReading(double *inBuff);
 
 
 /*getPressureReading

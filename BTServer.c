@@ -20,6 +20,7 @@ void spectraTest(int client);
 
 static FILE *log;
 static int pressureThreadRunning = 0;
+static int spectraThreadRunning = 0;
 
 static enum {
     MOTOR_ON = 49,
@@ -49,32 +50,39 @@ int main(int argc, char **argv)
 
     char pressureReadingString[128];
 
+	/*pressureThread
+	 * when started, streams pressure readings at specified rate.
+	 * Terminates when main() sets pressureThreadRunning back to 0. 
+	 */
     PI_THREAD(pressureThread)
     {
-        int i = 15;
-
         while (pressureThreadRunning) {
             sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
             //sprintf(pressureReadingString,"%c%i",REQUEST_PRESSURE,777);
 
-            //printf("Sending %s\n",pressureReadingString);
             sendStringToClient(client, pressureReadingString);
             delay(PRESSURE_READING_RATE);
         }
+    }
 
+	/*spectraThread
+	 * When started, beams 1024 spectrum readings to application.
+	 * Format expected from app: [command][index];[intensity]
+	 */
+	PI_THREAD(spectraThread)
+    {
+        int i;
+		double specBuffer[NUM_WAVELENGTHS];
+		char specString[256];
+		//get a reading and place it into our buffer
+		getSpectrometerReading(specBuffer);
 
-        /*
-        while(i--) {
-                //sprintf(pressureReadingString,"%i",getPressureReading());
-                sprintf(pressureReadingString,"%c%i",REQUEST_PRESSURE,i);
-
-                //printf("Sending %s\n",pressureReadingString);
-                sendStringToClient(client, pressureReadingString);
-                delay(PRESSURE_READING_RATE);
-        }
-        pressureThreadRunning = 0;
-        printf("Terminated Thread\n");
-         */
+		for (i = 0; i < NUM_WAVELENGTHS; i++) {
+			sprintf(specString, "%c%i;%.2f", REQUEST_PRESSURE, i, specBuffer[i]);       
+			sendStringToClient(client, specString);
+		}
+		
+		printf("finished data stream!\n");
     }
 
     PI_THREAD(overcurrentThread)
@@ -170,7 +178,12 @@ int main(int argc, char **argv)
             break;
 
         case REQUEST_SPECTRA:
-            //spectraTest(client);
+            sendStringToClient(client, "Received spectrum request...\n");
+            int notCreated = piThreadCreate(spectraThread);
+                if (notCreated) {
+                    printf("pi thread failed somehow!\n");
+                    exit(5);
+                }
             break;
 
         case SETTINGS:
