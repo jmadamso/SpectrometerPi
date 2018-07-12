@@ -66,25 +66,33 @@ int main(int argc, char **argv)
     }
 
 	/*spectraThread
-	 * When started, beams 1024 spectrum readings to application.
-	 * Format expected from app: [command][index];[intensity]
+	 * When started, beams one huge string to application.
+	 * String delimited by ';'
 	 */
 	PI_THREAD(spectraThread)
     {
         int i;
 		double specBuffer[NUM_WAVELENGTHS];
-		char specString[1024];
+		
+		char specString[9600] = "";
+		char tmpBuf[128] = "";
+		sprintf(specString,"%c",REQUEST_SPECTRA);
+		
 		//get a reading and place it into our buffer
 		//if spec not connected, default to buffer y = x
 		getSpectrometerReading(specBuffer);
 
+		//now iterate through and apend each reading to this bigass string:
 		//for (i = 0; i < 5; i++) { //only send 5 for debugging
-		for (i = 0; i < NUM_WAVELENGTHS; i++) {
-			sprintf(specString, "%c%i;%.2f", REQUEST_SPECTRA, i, specBuffer[i]);       
-			sendStringToClient(client, specString);
-			delay(10);
+		for (i = 0; i < NUM_WAVELENGTHS-1; i++) {
+			sprintf(tmpBuf, "%.2f;", specBuffer[i]);       
+			strcat(specString,tmpBuf);
 		}
+		//and leave the ';' out of last entry:
+		sprintf(tmpBuf, "%.2f", specBuffer[i]);       
+		strcat(specString,tmpBuf);
 		
+		sendStringToClient(client, specString);
 		printf("finished data stream!\n");
     }
 
@@ -237,10 +245,13 @@ int main(int argc, char **argv)
     return 0;
 }
 
+/*
+ * Sends input string, up to 9600 in lengh, across bluetooth client
+ */ 
 int sendStringToClient(int client, char *string)
 {
     int err;
-    char buf[1024];
+    char buf[9600];
     memset(buf, 0, sizeof (buf));
     sprintf(buf, string);
     err = write(client, buf, strlen(buf));
