@@ -36,7 +36,7 @@ int main(int argc, char **argv)
     int i, k;
     int running = 1;
 
-    //isDefault;NumScans;Time between;Integration time; boxcar width; averages
+    //NumScans;Time between;Integration time; boxcar width; averages
     specSettings mySpec = {5, 60, 1000, 0, 3};
 
     struct sockaddr_rc loc_addr = {0}, rem_addr = {0};
@@ -73,13 +73,16 @@ int main(int argc, char **argv)
     {
         int i;
 		double specBuffer[NUM_WAVELENGTHS];
-		char specString[256];
+		char specString[1024];
 		//get a reading and place it into our buffer
+		//if spec not connected, default to buffer y = x
 		getSpectrometerReading(specBuffer);
 
+		//for (i = 0; i < 5; i++) { //only send 5 for debugging
 		for (i = 0; i < NUM_WAVELENGTHS; i++) {
-			sprintf(specString, "%c%i;%.2f", REQUEST_PRESSURE, i, specBuffer[i]);       
+			sprintf(specString, "%c%i;%.2f", REQUEST_SPECTRA, i, specBuffer[i]);       
 			sendStringToClient(client, specString);
+			delay(10);
 		}
 		
 		printf("finished data stream!\n");

@@ -90,8 +90,9 @@ int getSpectrometerReading(double *inBuff)
     
     int i;
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
-		spectrumArray[i] = i+1000;
+		spectrumArray[i] = i;
 	}
+	
 	#ifdef SPEC_CONNECTED
     seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_WAVELENGTHS);
 	#endif
