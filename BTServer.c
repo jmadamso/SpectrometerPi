@@ -88,7 +88,7 @@ int main(int argc, char **argv)
 		for (i = 0; i < 1; i += 8) { //only send 1 for debug
 		//for (i = 0; i < NUM_WAVELENGTHS; i += 8) {
 			
-			sprintf(specString,"%c;%i;",REQUEST_SPECTRA,i);
+			sprintf(specString,"%c%i;",REQUEST_SPECTRA,i);
 			for(j = 0; j < 7; j++) {
 				sprintf(tmpBuf, "%.2f;", specBuffer[i + j]);       
 				strcat(specString,tmpBuf);
