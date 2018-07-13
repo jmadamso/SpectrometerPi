@@ -52,62 +52,62 @@ int main(int argc, char **argv)
 
     char pressureReadingString[128];
 
-	/*pressureThread
-	 * when started, streams pressure readings at specified rate.
-	 * Terminates when main() sets pressureThreadRunning back to 0. 
-	 */
+    /*pressureThread
+     * when started, streams pressure readings at specified rate.
+     * Terminates when main() sets pressureThreadRunning back to 0. 
+     */
     PI_THREAD(pressureThread)
     {
         while (pressureThreadRunning) {
-			if(!STATICPRESSURE) {
-				sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
-			} else {
-            sprintf(pressureReadingString,"%c%i",REQUEST_PRESSURE,777);
-			}
-			
+            if (!STATICPRESSURE) {
+                sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
+            } else {
+                sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, 777);
+            }
+
             sendStringToClient(client, pressureReadingString);
             delay(PRESSURE_READING_RATE);
-            
+
         }
     }
 
-	/*spectraThread
-	 * When started, beams several strings containing spectrum data
-	 * String delimited by ';'
-	 * [command][index offset];[reading];*8
-	 */
-	PI_THREAD(spectraThread)
+    /*spectraThread
+     * When started, beams several strings containing spectrum data
+     * String delimited by ';'
+     * [command][index offset];[reading];*8
+     */
+    PI_THREAD(spectraThread)
     {
-        int i,j,k;
-        k=0;
-		double specBuffer[NUM_WAVELENGTHS];
-		
-		char specString[256] = "";
-		char tmpBuf[128] = "";
-		
-		//get a reading and place it into our buffer
-		//if spec not connected, default to buffer y = x
-		getSpectrometerReading(specBuffer);
+        int i, j, k;
+        k = 0;
+        double specBuffer[NUM_WAVELENGTHS];
 
-		//now iterate through and apend 8 readings per string
-		
-		//for (i = 1016; i < 1024; i += 8) { //only send 1 for debug
-		for (i = 0; i < NUM_WAVELENGTHS; i += 8) {
-			
-			sprintf(specString,"%c%i;",REQUEST_SPECTRA,i);
-			for(j = 0; j < 7; j++) {
-				sprintf(tmpBuf, "%.2f;", specBuffer[i + j]);       
-				strcat(specString,tmpBuf);
-			}	
-			//and leave the ';' out of last entry:
-			sprintf(tmpBuf, "%.2f", specBuffer[i + 7]); 
-			strcat(specString,tmpBuf);
-			
-			sendStringToClient(client, specString);
-			delay(10);
-			k++;
-		}
-		printf("finished data stream! %i Strings sent\n",k);
+        char specString[256] = "";
+        char tmpBuf[128] = "";
+
+        //get a reading and place it into our buffer
+        //if spec not connected, default to buffer y = x
+        getSpectrometerReading(specBuffer);
+
+        //now iterate through and apend 8 readings per string
+
+        //for (i = 1016; i < 1024; i += 8) { //only send 1 for debug
+        for (i = 0; i < NUM_WAVELENGTHS; i += 8) {
+
+            sprintf(specString, "%c%i;", REQUEST_SPECTRA, i);
+            for (j = 0; j < 7; j++) {
+                sprintf(tmpBuf, "%.2f;", specBuffer[i + j]);
+                strcat(specString, tmpBuf);
+            }
+            //and leave the ';' out of last entry:
+            sprintf(tmpBuf, "%.2f", specBuffer[i + 7]);
+            strcat(specString, tmpBuf);
+
+            sendStringToClient(client, specString);
+            delay(10);
+            k++;
+        }
+        printf("finished data stream! %i Strings sent\n", k);
     }
 
     PI_THREAD(overcurrentThread)
@@ -204,13 +204,13 @@ int main(int argc, char **argv)
 
         case REQUEST_SPECTRA:
             sendStringToClient(client, "Received spectrum request...\n");
-            
+
             notCreated = piThreadCreate(spectraThread);
             //notCreated = 0;
-                if (notCreated) {
-                    printf("pi thread failed somehow!\n");
-                    exit(5);
-                }
+            if (notCreated) {
+                printf("pi thread failed somehow!\n");
+                exit(5);
+            }
             break;
 
         case SETTINGS:
@@ -263,7 +263,7 @@ int main(int argc, char **argv)
 
 /*
  * Sends input string, up to 256 in lengh, across bluetooth client
- */ 
+ */
 int sendStringToClient(int client, char *string)
 {
     int err;
