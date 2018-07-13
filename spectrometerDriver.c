@@ -90,7 +90,7 @@ int getSpectrometerReading(double *inBuff)
     
     int i;
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
-		spectrumArray[i] = i;
+		spectrumArray[i] = i * i;
 	}
 	
 	#ifdef SPEC_CONNECTED

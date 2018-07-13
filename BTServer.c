@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 	/*spectraThread
 	 * When started, beams several strings containing spectrum data
 	 * String delimited by ';'
-	 * [command];[index offset];[reading;]*8
+	 * [command][index offset];[reading];*8
 	 */
 	PI_THREAD(spectraThread)
     {
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 
     PI_THREAD(overcurrentThread)
     {
-        //junk here to continually read the current LEDs
+        //junk here to continually read the LED current
     }
 
     sprintf(inBuf, "./log_%s.txt", "blerp");
