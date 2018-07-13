@@ -34,7 +34,9 @@ static enum {
 int main(int argc, char **argv)
 {
     int i, k;
+    int notCreated;
     int running = 1;
+    int STATICPRESSURE = 1;
 
     //NumScans;Time between;Integration time; boxcar width; averages
     specSettings mySpec = {5, 60, 1000, 0, 3};
@@ -57,11 +59,15 @@ int main(int argc, char **argv)
     PI_THREAD(pressureThread)
     {
         while (pressureThreadRunning) {
-            sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
-            //sprintf(pressureReadingString,"%c%i",REQUEST_PRESSURE,777);
-
+			if(!STATICPRESSURE) {
+				sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
+			} else {
+            sprintf(pressureReadingString,"%c%i",REQUEST_PRESSURE,777);
+			}
+			
             sendStringToClient(client, pressureReadingString);
             delay(PRESSURE_READING_RATE);
+            
         }
     }
 
@@ -85,8 +91,8 @@ int main(int argc, char **argv)
 
 		//now iterate through and apend 8 readings per string
 		
-		for (i = 0; i < 1; i += 8) { //only send 1 for debug
-		//for (i = 0; i < NUM_WAVELENGTHS; i += 8) {
+		//for (i = 1016; i < 1024; i += 8) { //only send 1 for debug
+		for (i = 0; i < NUM_WAVELENGTHS; i += 8) {
 			
 			sprintf(specString,"%c%i;",REQUEST_SPECTRA,i);
 			for(j = 0; j < 7; j++) {
@@ -188,7 +194,7 @@ int main(int argc, char **argv)
                 pressureThreadRunning = 0;
             } else {
                 pressureThreadRunning = 1;
-                int notCreated = piThreadCreate(pressureThread);
+                notCreated = piThreadCreate(pressureThread);
                 if (notCreated) {
                     printf("pi thread failed somehow!\n");
                     exit(5);
@@ -198,7 +204,9 @@ int main(int argc, char **argv)
 
         case REQUEST_SPECTRA:
             sendStringToClient(client, "Received spectrum request...\n");
-            int notCreated = piThreadCreate(spectraThread);
+            
+            notCreated = piThreadCreate(spectraThread);
+            //notCreated = 0;
                 if (notCreated) {
                     printf("pi thread failed somehow!\n");
                     exit(5);
