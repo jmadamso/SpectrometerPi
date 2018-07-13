@@ -66,34 +66,42 @@ int main(int argc, char **argv)
     }
 
 	/*spectraThread
-	 * When started, beams one huge string to application.
+	 * When started, beams several strings containing spectrum data
 	 * String delimited by ';'
+	 * [command];[index offset];[reading;]*8
 	 */
 	PI_THREAD(spectraThread)
     {
-        int i;
+        int i,j,k;
+        k=0;
 		double specBuffer[NUM_WAVELENGTHS];
 		
-		char specString[9600] = "";
+		char specString[256] = "";
 		char tmpBuf[128] = "";
-		sprintf(specString,"%c",REQUEST_SPECTRA);
 		
 		//get a reading and place it into our buffer
 		//if spec not connected, default to buffer y = x
 		getSpectrometerReading(specBuffer);
 
-		//now iterate through and apend each reading to this bigass string:
-		//for (i = 0; i < 5; i++) { //only send 5 for debugging
-		for (i = 0; i < NUM_WAVELENGTHS-1; i++) {
-			sprintf(tmpBuf, "%.2f;", specBuffer[i]);       
-			strcat(specString,tmpBuf);
-		}
-		//and leave the ';' out of last entry:
-		sprintf(tmpBuf, "%.2f", specBuffer[i]);       
-		strcat(specString,tmpBuf);
+		//now iterate through and apend 8 readings per string
 		
-		sendStringToClient(client, specString);
-		printf("finished data stream!\n");
+		for (i = 0; i < 1; i += 8) { //only send 1 for debug
+		//for (i = 0; i < NUM_WAVELENGTHS; i += 8) {
+			
+			sprintf(specString,"%c;%i;",REQUEST_SPECTRA,i);
+			for(j = 0; j < 7; j++) {
+				sprintf(tmpBuf, "%.2f;", specBuffer[i + j]);       
+				strcat(specString,tmpBuf);
+			}	
+			//and leave the ';' out of last entry:
+			sprintf(tmpBuf, "%.2f", specBuffer[i + 7]); 
+			strcat(specString,tmpBuf);
+			
+			sendStringToClient(client, specString);
+			delay(10);
+			k++;
+		}
+		printf("finished data stream! %i Strings sent\n",k);
     }
 
     PI_THREAD(overcurrentThread)
@@ -246,12 +254,12 @@ int main(int argc, char **argv)
 }
 
 /*
- * Sends input string, up to 9600 in lengh, across bluetooth client
+ * Sends input string, up to 256 in lengh, across bluetooth client
  */ 
 int sendStringToClient(int client, char *string)
 {
     int err;
-    char buf[9600];
+    char buf[256];
     memset(buf, 0, sizeof (buf));
     sprintf(buf, string);
     err = write(client, buf, strlen(buf));
