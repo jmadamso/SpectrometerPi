@@ -28,7 +28,8 @@ static enum {
     REQUEST_PRESSURE,
     REQUEST_SPECTRA,
     SETTINGS,
-    QUIT
+    QUIT,
+    LED_TOGGLE
 } commands;
 
 int main(int argc, char **argv)
@@ -36,8 +37,8 @@ int main(int argc, char **argv)
     int i, k;
     int notCreated;
     int running = 1;
-    int STATICPRESSURE = 1;
-
+    int toggle = 1;
+    
     //NumScans;Time between;Integration time; boxcar width; averages
     specSettings mySpec = {5, 60, 1000, 0, 3};
 
@@ -59,22 +60,16 @@ int main(int argc, char **argv)
     PI_THREAD(pressureThread)
     {
         while (pressureThreadRunning) {
-            if (!STATICPRESSURE) {
-                sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
-            } else {
-                sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, 777);
-            }
-
+            sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());        
             sendStringToClient(client, pressureReadingString);
             delay(PRESSURE_READING_RATE);
-
         }
     }
 
     /*spectraThread
      * When started, beams several strings containing spectrum data
      * String delimited by ';'
-     * [command][index offset];[reading];*8
+     * [command][index offset];[reading];n (*8)
      */
     PI_THREAD(spectraThread)
     {
@@ -173,13 +168,17 @@ int main(int argc, char **argv)
         case MOTOR_OFF:
             sendStringToClient(client, "Turning off motor...\n");
             motor_OFF();
-
-            static int toggle = 1;
+            break;
+            
+        case LED_TOGGLE:
+            
             if (toggle) {
+				sendStringToClient(client, "Turning on LED...\n");
                 LED_ON();
                 //start current protection here thread here
                 toggle = 0;
             } else {
+				sendStringToClient(client, "Turning off LED...\n");   
                 LED_OFF();
                 toggle = 1;
             }

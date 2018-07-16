@@ -16,7 +16,8 @@
 
 
 //DEFINES
-//#define SPEC_CONNECTED //uncomment this if spectrometer is usb-connected
+#define SPEC_CONNECTED //uncomment this if spectrometer is usb-connected
+//#define ADC_CONNECTED //uncomment this if the ADC is connected
 
 #define MILLISEC_TO_MICROSEC 1000
 #define MAX_INTENSITY 3500
@@ -57,7 +58,6 @@ int setIntegrationTime(int newTime)
 
 int applySpecSettings(specSettings in)
 {
-
     thisSpec.numScans = in.numScans;
     thisSpec.timeBetweenScans = in.timeBetweenScans;
     thisSpec.integrationTime = in.integrationTime;
@@ -71,16 +71,15 @@ int applySpecSettings(specSettings in)
         }
     }
 
-
-    //update hardware to new integration time
-#ifdef SPEC_CONNECTED
-    seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, thisSpec.integrationTime * MILLISEC_TO_MICROSEC);
-#endif
-
+    //update hardware to new settings
+	setIntegrationTime(thisSpec.integrationTime);
 }
 
 int getSpectrometerReading(double *inBuff)
 {
+	double tmpBuf[NUM_WAVELENGTHS];
+	int i;
+	
     if (!inited) {
         if (Hardware_Init() != 0) {
             printf("Bad Times at getReading");
@@ -88,7 +87,7 @@ int getSpectrometerReading(double *inBuff)
         }
     }
 
-    int i;
+    //default to y=x
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
         spectrumArray[i] = i;
     }
@@ -98,10 +97,12 @@ int getSpectrometerReading(double *inBuff)
 #endif
 
     //copy results to input buffer
-    for (i = 0; i < NUM_WAVELENGTHS; i++) {
-        inBuff[i] = spectrumArray[i];
-    }
-
+    //for (i = 0; i < NUM_WAVELENGTHS; i++) {
+    //    inBuff[i] = spectrumArray[i];
+    //}
+	
+	boxcarAverage(thisSpec.boxcarWidth,spectrumArray,inBuff,NUM_WAVELENGTHS);
+	
     if (errorCode) {
         printf("Error: problem getting spectrum\n");
         getchar();
@@ -119,7 +120,11 @@ int getPressureReading()
             exit(-1);
         }
     }
+    #ifdef ADC_CONNECTED
     return analogRead(BASE);
+    #else 
+    return 777;
+    #endif
 }
 
 void motor_ON()
@@ -227,6 +232,7 @@ static int Hardware_Init()
 
 int boxcarAverage(int width, double *inputArray, double *outputArray, int numElements)
 {
+	
     signed int i, j, k, l;
 
     if (width < 0) {
@@ -240,6 +246,7 @@ int boxcarAverage(int width, double *inputArray, double *outputArray, int numEle
         }
         return 1;
     }
+    printf("applying boxcar width %i\n",width);
 
 
     for (i = 0; i < numElements; i++) {
