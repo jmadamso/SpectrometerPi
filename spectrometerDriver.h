@@ -72,7 +72,7 @@ void LED_OFF();
 
 /*boxcarAverage
  * produce a smooth array, using boxcar width Width operating on inputArray
- */ 
+ */
 int boxcarAverage(int width, double *inputArray, double *outputArray, int numElements);
 
 

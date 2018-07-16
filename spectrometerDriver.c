@@ -72,14 +72,14 @@ int applySpecSettings(specSettings in)
     }
 
     //update hardware to new settings
-	setIntegrationTime(thisSpec.integrationTime);
+    setIntegrationTime(thisSpec.integrationTime);
 }
 
 int getSpectrometerReading(double *inBuff)
 {
-	double tmpBuf[NUM_WAVELENGTHS];
-	int i;
-	
+    double tmpBuf[NUM_WAVELENGTHS];
+    int i;
+
     if (!inited) {
         if (Hardware_Init() != 0) {
             printf("Bad Times at getReading");
@@ -100,9 +100,9 @@ int getSpectrometerReading(double *inBuff)
     //for (i = 0; i < NUM_WAVELENGTHS; i++) {
     //    inBuff[i] = spectrumArray[i];
     //}
-	
-	boxcarAverage(thisSpec.boxcarWidth,spectrumArray,inBuff,NUM_WAVELENGTHS);
-	
+
+    boxcarAverage(thisSpec.boxcarWidth, spectrumArray, inBuff, NUM_WAVELENGTHS);
+
     if (errorCode) {
         printf("Error: problem getting spectrum\n");
         getchar();
@@ -120,11 +120,11 @@ int getPressureReading()
             exit(-1);
         }
     }
-    #ifdef ADC_CONNECTED
+#ifdef ADC_CONNECTED
     return analogRead(BASE);
-    #else 
+#else 
     return 777;
-    #endif
+#endif
 }
 
 void motor_ON()
@@ -232,7 +232,7 @@ static int Hardware_Init()
 
 int boxcarAverage(int width, double *inputArray, double *outputArray, int numElements)
 {
-	
+
     signed int i, j, k, l;
 
     if (width < 0) {
@@ -246,7 +246,7 @@ int boxcarAverage(int width, double *inputArray, double *outputArray, int numEle
         }
         return 1;
     }
-    printf("applying boxcar width %i\n",width);
+    printf("applying boxcar width %i\n", width);
 
 
     for (i = 0; i < numElements; i++) {

@@ -38,7 +38,7 @@ int main(int argc, char **argv)
     int notCreated;
     int running = 1;
     int toggle = 1;
-    
+
     //NumScans;Time between;Integration time; boxcar width; averages
     specSettings mySpec = {5, 60, 1000, 0, 3};
 
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     PI_THREAD(pressureThread)
     {
         while (pressureThreadRunning) {
-            sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());        
+            sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
             sendStringToClient(client, pressureReadingString);
             delay(PRESSURE_READING_RATE);
         }
@@ -169,16 +169,16 @@ int main(int argc, char **argv)
             sendStringToClient(client, "Turning off motor...\n");
             motor_OFF();
             break;
-            
+
         case LED_TOGGLE:
-            
+
             if (toggle) {
-				sendStringToClient(client, "Turning on LED...\n");
+                sendStringToClient(client, "Turning on LED...\n");
                 LED_ON();
                 //start current protection here thread here
                 toggle = 0;
             } else {
-				sendStringToClient(client, "Turning off LED...\n");   
+                sendStringToClient(client, "Turning off LED...\n");
                 LED_OFF();
                 toggle = 1;
             }
