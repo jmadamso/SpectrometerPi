@@ -76,6 +76,9 @@ def main():
 
     # Make device visible
     #os.system("hciconfig hci0 piscan")
+    
+    # Make device invisible
+    #os.system("hciconfig hci0 noscan")
  
 	
 
