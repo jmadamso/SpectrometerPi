@@ -1,3 +1,10 @@
+/*
+ * 
+ * 
+ * before compiling, stop the OS from running this with:
+ * sudo systemctl stop BTServerC
+ */ 
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -34,6 +41,8 @@ static enum {
 
 int main(int argc, char **argv)
 {
+	printf("BTServer started with socket = %s\n",argv[1]);
+	
     int i, k;
     int notCreated;
     int running = 1;
@@ -46,6 +55,8 @@ int main(int argc, char **argv)
     char inBuf[1024];
     char outBuf[1024];
     int s, client, bytes_read, err;
+    client = atoi(argv[1]);
+    printf("sanity check, socket = %i\n",client);
     socklen_t opt = sizeof (rem_addr);
 
     char timeString[128];
@@ -116,6 +127,8 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
+	/*
+	
     // allocate socket
     s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
 
@@ -140,7 +153,7 @@ int main(int argc, char **argv)
     ba2str(&rem_addr.rc_bdaddr, inBuf);
     fprintf(stderr, "accepted connection from %s\n", inBuf);
     fprintf(log, "accepted connection from %s\n", inBuf);
-
+*/
     while (running) {
 
         // prepare a clean buffer... 
@@ -256,8 +269,8 @@ int main(int argc, char **argv)
     delay(2000);
     fclose(log);
     close(client);
-    close(s);
-    return 0;
+    //close(s);
+    return 69;
 }
 
 /*

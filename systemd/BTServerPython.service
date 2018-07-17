@@ -1,0 +1,14 @@
+[Unit]
+Description=Raspberry PI Bluetooth Server
+After=bluetooth.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/pi/Desktop/SpectrometerPi
+ExecStart=/home/pi/Desktop/SpectrometerPi/BTServerPython.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

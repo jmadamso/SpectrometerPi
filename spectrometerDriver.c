@@ -16,7 +16,7 @@
 
 
 //DEFINES
-#define SPEC_CONNECTED //uncomment this if spectrometer is usb-connected
+//#define SPEC_CONNECTED //uncomment this if spectrometer is usb-connected
 //#define ADC_CONNECTED //uncomment this if the ADC is connected
 
 #define MILLISEC_TO_MICROSEC 1000
