@@ -5,7 +5,7 @@
 #
 #This is run repeatedly by the os using the BTServerPython service,
 #custom defined in /etc/systemd/system
-# stop with: sudo systemctl stop BTServerPython
+# stop with: sudo systemctl stop BTServer
 #
 
 import logging
@@ -35,11 +35,14 @@ def setup_logging():
     # Define and parse command line arguments
     argp = argparse.ArgumentParser(description="Raspberry PI Bluetooth Server")
     argp.add_argument("-l", "--log", help="log (default '" + LOG_FILE + "')")
+    argp.add_argument("-e","--eff",type=int)
 
     # Grab the log file from arguments
     args = argp.parse_args()
     if args.log:
         LOG_FILE = args.log
+    if args.eff == 5:
+        print "wow!"
 
     # Setup the logger
     logger = logging.getLogger(__name__)
@@ -96,7 +99,7 @@ def main():
                        profiles=[SERIAL_PORT_PROFILE])
 
     print "Waiting for connection on RFCOMM channel %d" % port
-
+    #print "Server socket = %i" % server_sock.fileno()
     try:
         client_sock = None
 
@@ -112,7 +115,7 @@ def main():
 
         # now that we connected, switch to C because it's better:
         argStr = "./BTServer %i" % socketNumber
-        print argStr
+        print "arg string = " + argStr
         os.system(argStr)
 
     except IOError:

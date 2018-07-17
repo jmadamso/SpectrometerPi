@@ -2,7 +2,7 @@
  * 
  * 
  * before compiling, stop the OS from running this with:
- * sudo systemctl stop BTServerC
+ * sudo systemctl stop BTServer
  */ 
 
 #include <stdio.h>
@@ -41,6 +41,7 @@ static enum {
 
 int main(int argc, char **argv)
 {
+	//since the 
 	printf("BTServer started with socket = %s\n",argv[1]);
 	
     int i, k;
@@ -127,8 +128,9 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
+	//the code below can be used to accept connections in C.
+	//Made obsolete by python server
 	/*
-	
     // allocate socket
     s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
 
@@ -154,6 +156,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "accepted connection from %s\n", inBuf);
     fprintf(log, "accepted connection from %s\n", inBuf);
 */
+
     while (running) {
 
         // prepare a clean buffer... 
@@ -188,7 +191,7 @@ int main(int argc, char **argv)
             if (toggle) {
                 sendStringToClient(client, "Turning on LED...\n");
                 LED_ON();
-                //start current protection here thread here
+                //start current protection thread here if using
                 toggle = 0;
             } else {
                 sendStringToClient(client, "Turning off LED...\n");
@@ -215,6 +218,7 @@ int main(int argc, char **argv)
             break;
 
         case REQUEST_SPECTRA:
+			//if this command comes, start the thread to transmit spectrum
             sendStringToClient(client, "Received spectrum request...\n");
 
             notCreated = piThreadCreate(spectraThread);
@@ -268,7 +272,8 @@ int main(int argc, char **argv)
     //it doesn't hurt.
     delay(2000);
     fclose(log);
-    close(client);
+    //closing is handled in python
+    //close(client);
     //close(s);
     return 69;
 }
@@ -296,7 +301,6 @@ int sendStringToClient(int client, char *string)
         fprintf(log, "Response: %s\n", buf);
         return 1;
     }
-
 }
 
 
