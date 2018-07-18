@@ -132,6 +132,7 @@ int getPressureReading()
     
 	if(adcConnected) {
 		return analogRead(BASE);
+		printf("ADC appears connected\n");
 	} else {
 		return 777;
 	}
@@ -205,7 +206,7 @@ static int Hardware_Init()
     seabreeze_open_spectrometer(spectrometerIndex, &errorCode);
 
     if (errorCode) {
-        printf("no device connected... applying defaults\n");
+        printf("no device connected; applying defaults\n");
         specConnected = FALSE;
     } else {
 		specConnected = TRUE;
@@ -233,12 +234,20 @@ static int Hardware_Init()
     //From digging through wiringpi source, mcp3004 setup returns TRUE
     //when it sets up successfully. This is unfortunately opposite of 
     //the convention i have been using.
+    
+    
+    
+    
     if(mcp3004Setup(BASE, SPI_CHAN)) {
 		adcConnected = TRUE;
+		printf("ADC appears connected.\n");
 	} else {
 		adcConnected = FALSE; 
+		printf("no ADC found.\n");
 	}
 	
+	//DISABLE ANALOG READINGS FOR DEBUG:
+	adcConnected = FALSE; 
 
     //set this pin up as PWM
     pinMode(PWM_PIN, PWM_OUTPUT);
