@@ -16,8 +16,7 @@
 
 
 //DEFINES
-//#define SPEC_CONNECTED //uncomment this if spectrometer is usb-connected
-//#define ADC_CONNECTED //uncomment this if the ADC is connected
+
 
 #define MILLISEC_TO_MICROSEC 1000
 #define MAX_INTENSITY 3500
@@ -34,11 +33,15 @@
 static int spectrometerIndex = 0;
 static int errorCode = 0;
 static FILE *outputFile;
+static FILE *waves;
 static int inited = 0;
-
+static double spectrumArray[NUM_WAVELENGTHS];
 static specSettings thisSpec = {5, 60, 1000, 0, 3};
 
-static double spectrumArray[NUM_WAVELENGTHS];
+static int specConnected = 0;
+static int adcConnected = 0;
+
+
 
 static int Hardware_Init();
 
@@ -46,14 +49,20 @@ int setIntegrationTime(int newTime)
 {
     if (!inited) {
         if (Hardware_Init() != 0) {
-            printf("Bad Times at setIntegTime");
-            exit(-1);
+            printf("Init failure at setIntegrationTime()\n");
+            return -1;
         }
     }
-
-#ifdef SPEC_CONNECTED
-    seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, newTime * MILLISEC_TO_MICROSEC);
-#endif
+    
+	if(specConnected) {
+		seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, newTime * MILLISEC_TO_MICROSEC);
+		if(errorCode) {
+            printf("Integration time failure in connected spectrometer :(\n");
+		}
+		return errorCode;
+	} else {
+		return -1;
+	}
 }
 
 int applySpecSettings(specSettings in)
@@ -66,48 +75,48 @@ int applySpecSettings(specSettings in)
 
     if (!inited) {
         if (Hardware_Init() != 0) {
-            printf("Bad Times at applySpecSettings");
-            exit(-1);
+            printf("Init failure at applySpecSettings()\n");
+            return -1;
         }
     }
 
     //update hardware to new settings
-    setIntegrationTime(thisSpec.integrationTime);
+    if (specConnected) {
+		return  setIntegrationTime(thisSpec.integrationTime);
+	}
+	 
+	return 0;
 }
 
 int getSpectrometerReading(double *inBuff)
 {
-    double tmpBuf[NUM_WAVELENGTHS];
     int i;
 
     if (!inited) {
         if (Hardware_Init() != 0) {
-            printf("Bad Times at getReading");
-            exit(-1);
+            printf("Init failure at getSpectrometerReading()\n");
+            return -1;
         }
-    }
+    } 
 
     //default to y=x
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
         spectrumArray[i] = i;
+        inBuff[i] = i;
     }
 
-#ifdef SPEC_CONNECTED
-    seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_WAVELENGTHS);
-#endif
+	errorCode = 0;
+	if(specConnected){
+		seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_WAVELENGTHS);
+		printf("spec appears connected\n");
+	}
 
-    //copy results to input buffer
-    //for (i = 0; i < NUM_WAVELENGTHS; i++) {
-    //    inBuff[i] = spectrumArray[i];
-    //}
-
-    boxcarAverage(thisSpec.boxcarWidth, spectrumArray, inBuff, NUM_WAVELENGTHS);
+	boxcarAverage(thisSpec.boxcarWidth, spectrumArray, inBuff, NUM_WAVELENGTHS);
 
     if (errorCode) {
         printf("Error: problem getting spectrum\n");
-        getchar();
-        return (-1);
-    }
+		return -1;  
+	}	
     return 0;
 }
 
@@ -116,15 +125,18 @@ int getPressureReading()
 
     if (!inited) {
         if (Hardware_Init()) {
-            printf("Bad Times at getPressure");
-            exit(-1);
+            printf("Init failure at getPressureReading\n");
+            return -1;
         }
     }
-#ifdef ADC_CONNECTED
-    return analogRead(BASE);
-#else 
-    return 777;
-#endif
+    
+	if(adcConnected) {
+		return analogRead(BASE);
+	} else {
+		return 777;
+	}
+    
+    
 }
 
 void motor_ON()
@@ -187,36 +199,46 @@ int endSession()
 static int Hardware_Init()
 {
     errorCode = 0;
+    
+    //try to open the spec and set flag accordingly
     printf("Opening spectrometer...");
-#ifdef SPEC_CONNECTED
     seabreeze_open_spectrometer(spectrometerIndex, &errorCode);
-#endif
 
     if (errorCode) {
-        printf("Could not find device.\n");
-        getchar();
-        return 1;
-    }
-    printf("done.\n");
-
-    printf("Setting integration time to %i ms...", thisSpec.integrationTime);
-
-#ifdef SPEC_CONNECTED
-    seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, thisSpec.integrationTime * MILLISEC_TO_MICROSEC);
-#endif
-
-    if (errorCode) {
+        printf("no device connected... applying defaults\n");
+        specConnected = FALSE;
+    } else {
+		specConnected = TRUE;
+	}
+    
+	//apply  integration time if connected
+	if(specConnected) {
+		printf("done.\n");
+		printf("Setting integration time to %i ms...", thisSpec.integrationTime);
+		seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, thisSpec.integrationTime * MILLISEC_TO_MICROSEC);
+		if (errorCode) {
         printf("Unable to set integration time.\n");
-        getchar();
         return 1;
-    }
+		}
 
+		
+	}
+
+    //try to do other hardware
     printf("Initializing wiringPi, PWM and ADC...");
     if (wiringPiSetup() == -1) {
         return -1;
     }
-    //BASE sets the new pin base
-    mcp3004Setup(BASE, SPI_CHAN);
+    //BASE sets the new pin base.
+    //From digging through wiringpi source, mcp3004 setup returns TRUE
+    //when it sets up successfully. This is unfortunately opposite of 
+    //the convention i have been using.
+    if(mcp3004Setup(BASE, SPI_CHAN)) {
+		adcConnected = TRUE;
+	} else {
+		adcConnected = FALSE; 
+	}
+	
 
     //set this pin up as PWM
     pinMode(PWM_PIN, PWM_OUTPUT);
@@ -236,8 +258,12 @@ int boxcarAverage(int width, double *inputArray, double *outputArray, int numEle
     signed int i, j, k, l;
 
     if (width < 0) {
-        printf("Boxcar width must be zero or positive integer. Defaulting to 0.\n");
+        printf("Boxcar width must be an integer betwwen 0 and 16. Defaulting to 0.\n");
         width = 0;
+    }
+    if (width > 16) {
+        printf("Boxcar width must be an integer betwwen 0 and 16. Defaulting to 16.\n");
+        width = 16;
     }
 
     if (width == 0 || width == 1) {

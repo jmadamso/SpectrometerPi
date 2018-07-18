@@ -1,5 +1,8 @@
 /*
+ * BTServerC
  * 
+ * Receives a socket from the python service and serves the client,
+ * responding to commands 
  * 
  * before compiling, stop the OS from running this with:
  * sudo systemctl stop BTServer
@@ -22,8 +25,6 @@
 #define PRESSURE_READING_RATE 750
 
 int sendStringToClient(int Client, char *string);
-void spectraTest(int client);
-
 
 static FILE *log;
 static int pressureThreadRunning = 0;
@@ -41,122 +42,89 @@ static enum {
 
 int main(int argc, char **argv)
 {
-	//since the 
 	printf("BTServer started with socket = %s\n",argv[1]);
 	
     int i, k;
     int notCreated;
     int running = 1;
     int toggle = 1;
+	int bytes_read;
+	int client = atoi(argv[1]);
+	
+	char inBuf[1024];
+    char outBuf[1024];
+    char pressureReadingString[128];
 
     //NumScans;Time between;Integration time; boxcar width; averages
     specSettings mySpec = {5, 60, 1000, 0, 3};
-
-    struct sockaddr_rc loc_addr = {0}, rem_addr = {0};
-    char inBuf[1024];
-    char outBuf[1024];
-    int s, client, bytes_read, err;
-    client = atoi(argv[1]);
+    
     printf("sanity check, socket = %i\n",client);
-    socklen_t opt = sizeof (rem_addr);
 
-    char timeString[128];
-    int time;
+	//THREAD DECLARATIONS GO HERE BECAUSE ITS ANNOYING TO DECLARE
+	//THEM OUTSIDE OF main()
 
-    char pressureReadingString[128];
+		/*pressureThread
+		 * when started, streams pressure readings at specified rate.
+		 * Terminates when main() sets pressureThreadRunning back to 0. 
+		 */
+		PI_THREAD(pressureThread)
+		{
+			while (pressureThreadRunning) {
+				sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
+				sendStringToClient(client, pressureReadingString);
+				delay(PRESSURE_READING_RATE);
+			}
+		}
 
-    /*pressureThread
-     * when started, streams pressure readings at specified rate.
-     * Terminates when main() sets pressureThreadRunning back to 0. 
-     */
-    PI_THREAD(pressureThread)
-    {
-        while (pressureThreadRunning) {
-            sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
-            sendStringToClient(client, pressureReadingString);
-            delay(PRESSURE_READING_RATE);
-        }
-    }
+		/*spectraThread
+		 * When started, beams several strings containing spectrum data
+		 * String delimited by ';'
+		 * [command][index offset];[reading]; (*8)
+		 */
+		PI_THREAD(spectraThread)
+		{
+			int index, offset = 0, k = 0;
+			double specBuffer[NUM_WAVELENGTHS];
 
-    /*spectraThread
-     * When started, beams several strings containing spectrum data
-     * String delimited by ';'
-     * [command][index offset];[reading];n (*8)
-     */
-    PI_THREAD(spectraThread)
-    {
-        int i, j, k;
-        k = 0;
-        double specBuffer[NUM_WAVELENGTHS];
+			char specString[256] = "";
+			char tmpBuf[128] = "";
 
-        char specString[256] = "";
-        char tmpBuf[128] = "";
+			//get a reading and place it into our buffer
+			//if spec not connected, default to buffer y = x
+			getSpectrometerReading(specBuffer);
 
-        //get a reading and place it into our buffer
-        //if spec not connected, default to buffer y = x
-        getSpectrometerReading(specBuffer);
+			//now iterate through and apend 8 readings per string
+			//send index and then 8 values for offsets 0-7
+			for (index = 0; index < NUM_WAVELENGTHS; index += 8) {
 
-        //now iterate through and apend 8 readings per string
+				sprintf(specString, "%c%i;", REQUEST_SPECTRA, index);
+				for (offset = 0; offset < 7; offset++) {
+					sprintf(tmpBuf, "%.2f;", specBuffer[index + offset]);
+					strcat(specString, tmpBuf);
+				}
+				//and leave the ';' out of last entry:
+				sprintf(tmpBuf, "%.2f", specBuffer[index + 7]);
+				strcat(specString, tmpBuf);
 
-        //for (i = 1016; i < 1024; i += 8) { //only send 1 for debug
-        for (i = 0; i < NUM_WAVELENGTHS; i += 8) {
+				sendStringToClient(client, specString);
+				delay(10);
+				k++;
+			}
+			printf("finished data stream! %i Strings sent\n", k);
+			
+		}
 
-            sprintf(specString, "%c%i;", REQUEST_SPECTRA, i);
-            for (j = 0; j < 7; j++) {
-                sprintf(tmpBuf, "%.2f;", specBuffer[i + j]);
-                strcat(specString, tmpBuf);
-            }
-            //and leave the ';' out of last entry:
-            sprintf(tmpBuf, "%.2f", specBuffer[i + 7]);
-            strcat(specString, tmpBuf);
 
-            sendStringToClient(client, specString);
-            delay(10);
-            k++;
-        }
-        printf("finished data stream! %i Strings sent\n", k);
-    }
 
-    PI_THREAD(overcurrentThread)
-    {
-        //junk here to continually read the LED current
-    }
-
-    sprintf(inBuf, "./log_%s.txt", "blerp");
+	sprintf(inBuf, "./log_%s.txt", "blerp");
     log = fopen(inBuf, "a");
     if (!log) {
         exit(-1);
     }
-
-	//the code below can be used to accept connections in C.
-	//Made obsolete by python server
-	/*
-    // allocate socket
-    s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
-
-    // bind socket to port 1 of the first available 
-    // local bluetooth adapter
-    loc_addr.rc_family = AF_BLUETOOTH;
-    loc_addr.rc_bdaddr = *BDADDR_ANY;
-    loc_addr.rc_channel = (uint8_t) 1;
-    printf("Attempting to bind socket...\n");
-
-
-    bind(s, (struct sockaddr *) &loc_addr, sizeof (loc_addr));
-
-    // put socket into listening mode
-    printf("Listening for connections...\n");
-
-    listen(s, 1);
-
-    // accept one connection
-    client = accept(s, (struct sockaddr *) &rem_addr, &opt);
-
-    ba2str(&rem_addr.rc_bdaddr, inBuf);
-    fprintf(stderr, "accepted connection from %s\n", inBuf);
-    fprintf(log, "accepted connection from %s\n", inBuf);
-*/
-
+    
+	/* Now, start the main loop. Listen for bytes, then check
+	 * the first byte for a command code and switch accordingly.
+	 */ 
     while (running) {
 
         // prepare a clean buffer... 
@@ -177,17 +145,19 @@ int main(int argc, char **argv)
         switch (inBuf[0]) {
 
         case MOTOR_ON:
+        
             sendStringToClient(client, "Turning on motor...\n");
             motor_ON();
             break;
 
         case MOTOR_OFF:
+        
             sendStringToClient(client, "Turning off motor...\n");
             motor_OFF();
             break;
 
         case LED_TOGGLE:
-
+        
             if (toggle) {
                 sendStringToClient(client, "Turning on LED...\n");
                 LED_ON();
@@ -202,9 +172,9 @@ int main(int argc, char **argv)
             break;
 
         case REQUEST_PRESSURE:
+        
             //if this command comes, start up the thread to
             //continually send pressure readings
-
             if (pressureThreadRunning) {
                 pressureThreadRunning = 0;
             } else {
@@ -218,11 +188,10 @@ int main(int argc, char **argv)
             break;
 
         case REQUEST_SPECTRA:
+        
 			//if this command comes, start the thread to transmit spectrum
             sendStringToClient(client, "Received spectrum request...\n");
-
             notCreated = piThreadCreate(spectraThread);
-            //notCreated = 0;
             if (notCreated) {
                 printf("pi thread failed somehow!\n");
                 exit(5);
@@ -230,6 +199,7 @@ int main(int argc, char **argv)
             break;
 
         case SETTINGS:
+        
             //if this command comes, we expect to sync settings. read them
             //in from the message to the struct.
             //** Reading from &inbuf[1] because 1st char contains the command itself
@@ -244,6 +214,7 @@ int main(int argc, char **argv)
 
         case QUIT:
         case 'q':
+        
             sendStringToClient(client, "Now Quitting!\n");
             running = 0;
             break;
@@ -252,7 +223,6 @@ int main(int argc, char **argv)
             running = sendStringToClient(client, "You have found a debug message! hehe :^)\n");
             break;
 
-
         default:
             if ((int) inBuf[0] == 0) {
                 printf("got null\n", client);
@@ -260,9 +230,7 @@ int main(int argc, char **argv)
             running = sendStringToClient(client, "Unrecognized Inbound Message!!\n");
             break;
         }
-
     }
-
 
     // close connection
     pressureThreadRunning = 0;
@@ -272,10 +240,8 @@ int main(int argc, char **argv)
     //it doesn't hurt.
     delay(2000);
     fclose(log);
-    //closing is handled in python
-    //close(client);
-    //close(s);
-    return 69;
+
+    return 777;
 }
 
 /*
@@ -283,12 +249,11 @@ int main(int argc, char **argv)
  */
 int sendStringToClient(int client, char *string)
 {
-    int err;
+	int err;
     char buf[256];
     memset(buf, 0, sizeof (buf));
     sprintf(buf, string);
     err = write(client, buf, strlen(buf));
-
 
     if (err < 0) {
         //we want to return 0 if the client isn't there anymore.
