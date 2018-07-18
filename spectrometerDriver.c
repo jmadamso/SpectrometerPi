@@ -53,16 +53,16 @@ int setIntegrationTime(int newTime)
             return -1;
         }
     }
-    
-	if(specConnected) {
-		seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, newTime * MILLISEC_TO_MICROSEC);
-		if(errorCode) {
+
+    if (specConnected) {
+        seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, newTime * MILLISEC_TO_MICROSEC);
+        if (errorCode) {
             printf("Integration time failure in connected spectrometer :(\n");
-		}
-		return errorCode;
-	} else {
-		return -1;
-	}
+        }
+        return errorCode;
+    } else {
+        return -1;
+    }
 }
 
 int applySpecSettings(specSettings in)
@@ -82,10 +82,10 @@ int applySpecSettings(specSettings in)
 
     //update hardware to new settings
     if (specConnected) {
-		return  setIntegrationTime(thisSpec.integrationTime);
-	}
-	 
-	return 0;
+        return setIntegrationTime(thisSpec.integrationTime);
+    }
+
+    return 0;
 }
 
 int getSpectrometerReading(double *inBuff)
@@ -97,7 +97,7 @@ int getSpectrometerReading(double *inBuff)
             printf("Init failure at getSpectrometerReading()\n");
             return -1;
         }
-    } 
+    }
 
     //default to y=x
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
@@ -105,39 +105,38 @@ int getSpectrometerReading(double *inBuff)
         inBuff[i] = i;
     }
 
-	errorCode = 0;
-	if(specConnected){
-		seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_WAVELENGTHS);
-		printf("spec appears connected\n");
-	}
+    errorCode = 0;
+    if (specConnected) {
+        seabreeze_get_formatted_spectrum(spectrometerIndex, &errorCode, spectrumArray, NUM_WAVELENGTHS);
+        printf("spec appears connected\n");
+    }
 
-	boxcarAverage(thisSpec.boxcarWidth, spectrumArray, inBuff, NUM_WAVELENGTHS);
+    boxcarAverage(thisSpec.boxcarWidth, spectrumArray, inBuff, NUM_WAVELENGTHS);
 
     if (errorCode) {
         printf("Error: problem getting spectrum\n");
-		return -1;  
-	}	
+        return -1;
+    }
     return 0;
 }
 
 int getPressureReading()
 {
-
     if (!inited) {
         if (Hardware_Init()) {
             printf("Init failure at getPressureReading\n");
             return -1;
         }
     }
-    
-	if(adcConnected) {
-		return analogRead(BASE);
-		printf("ADC appears connected\n");
-	} else {
-		return 777;
-	}
-    
-    
+
+    if (adcConnected) {
+        return analogRead(BASE);
+        printf("ADC appears connected\n");
+    } else {
+        return 777;
+    }
+
+
 }
 
 void motor_ON()
@@ -147,10 +146,8 @@ void motor_ON()
             printf("Bad Times at motor ON");
             exit(-1);
         }
-
     }
     pwmWrite(PWM_PIN, 540);
-
 }
 
 void motor_OFF()
@@ -200,7 +197,7 @@ int endSession()
 static int Hardware_Init()
 {
     errorCode = 0;
-    
+
     //try to open the spec and set flag accordingly
     printf("Opening spectrometer...");
     seabreeze_open_spectrometer(spectrometerIndex, &errorCode);
@@ -209,21 +206,21 @@ static int Hardware_Init()
         printf("no device connected; applying defaults\n");
         specConnected = FALSE;
     } else {
-		specConnected = TRUE;
-	}
-    
-	//apply  integration time if connected
-	if(specConnected) {
-		printf("done.\n");
-		printf("Setting integration time to %i ms...", thisSpec.integrationTime);
-		seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, thisSpec.integrationTime * MILLISEC_TO_MICROSEC);
-		if (errorCode) {
-        printf("Unable to set integration time.\n");
-        return 1;
-		}
+        specConnected = TRUE;
+    }
 
-		
-	}
+    //apply  integration time if connected
+    if (specConnected) {
+        printf("done.\n");
+        printf("Setting integration time to %i ms...", thisSpec.integrationTime);
+        seabreeze_set_integration_time_microsec(spectrometerIndex, &errorCode, thisSpec.integrationTime * MILLISEC_TO_MICROSEC);
+        if (errorCode) {
+            printf("Unable to set integration time.\n");
+            return 1;
+        }
+
+
+    }
 
     //try to do other hardware
     printf("Initializing wiringPi, PWM and ADC...");
@@ -234,20 +231,20 @@ static int Hardware_Init()
     //From digging through wiringpi source, mcp3004 setup returns TRUE
     //when it sets up successfully. This is unfortunately opposite of 
     //the convention i have been using.
-    
-    
-    
-    
-    if(mcp3004Setup(BASE, SPI_CHAN)) {
-		adcConnected = TRUE;
-		printf("ADC appears connected.\n");
-	} else {
-		adcConnected = FALSE; 
-		printf("no ADC found.\n");
-	}
-	
-	//DISABLE ANALOG READINGS FOR DEBUG:
-	adcConnected = FALSE; 
+
+
+
+
+    if (mcp3004Setup(BASE, SPI_CHAN)) {
+        adcConnected = TRUE;
+        printf("ADC appears connected.\n");
+    } else {
+        adcConnected = FALSE;
+        printf("no ADC found.\n");
+    }
+
+    //DISABLE ANALOG READINGS FOR DEBUG:
+    adcConnected = FALSE;
 
     //set this pin up as PWM
     pinMode(PWM_PIN, PWM_OUTPUT);

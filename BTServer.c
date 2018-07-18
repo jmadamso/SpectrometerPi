@@ -6,7 +6,7 @@
  * 
  * before compiling, stop the OS from running this with:
  * sudo systemctl stop BTServer
- */ 
+ */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -42,89 +42,89 @@ static enum {
 
 int main(int argc, char **argv)
 {
-	printf("BTServer started with socket = %s\n",argv[1]);
-	
+    printf("BTServer started with socket = %s\n", argv[1]);
+
     int i, k;
     int notCreated;
     int running = 1;
     int toggle = 1;
-	int bytes_read;
-	int client = atoi(argv[1]);
-	
-	char inBuf[1024];
+    int bytes_read;
+    int client = atoi(argv[1]);
+
+    char inBuf[1024];
     char outBuf[1024];
     char pressureReadingString[128];
 
     //NumScans;Time between;Integration time; boxcar width; averages
     specSettings mySpec = {5, 60, 1000, 0, 3};
-    
-    printf("sanity check, socket = %i\n",client);
 
-	//THREAD DECLARATIONS GO HERE BECAUSE ITS ANNOYING TO DECLARE
-	//THEM OUTSIDE OF main()
+    printf("sanity check, socket = %i\n", client);
 
-		/*pressureThread
-		 * when started, streams pressure readings at specified rate.
-		 * Terminates when main() sets pressureThreadRunning back to 0. 
-		 */
-		PI_THREAD(pressureThread)
-		{
-			while (pressureThreadRunning) {
-				sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
-				sendStringToClient(client, pressureReadingString);
-				delay(PRESSURE_READING_RATE);
-			}
-		}
+    //THREAD DECLARATIONS GO HERE BECAUSE ITS ANNOYING TO DECLARE
+    //THEM OUTSIDE OF main()
 
-		/*spectraThread
-		 * When started, beams several strings containing spectrum data
-		 * String delimited by ';'
-		 * [command][index offset];[reading]; (*8)
-		 */
-		PI_THREAD(spectraThread)
-		{
-			int index, offset = 0, k = 0;
-			double specBuffer[NUM_WAVELENGTHS];
+    /*pressureThread
+     * when started, streams pressure readings at specified rate.
+     * Terminates when main() sets pressureThreadRunning back to 0. 
+     */
+    PI_THREAD(pressureThread)
+    {
+        while (pressureThreadRunning) {
+            sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
+            sendStringToClient(client, pressureReadingString);
+            delay(PRESSURE_READING_RATE);
+        }
+    }
 
-			char specString[256] = "";
-			char tmpBuf[128] = "";
+    /*spectraThread
+     * When started, beams several strings containing spectrum data
+     * String delimited by ';'
+     * [command][index offset];[reading]; (*8)
+     */
+    PI_THREAD(spectraThread)
+    {
+        int index, offset = 0, k = 0;
+        double specBuffer[NUM_WAVELENGTHS];
 
-			//get a reading and place it into our buffer
-			//if spec not connected, default to buffer y = x
-			getSpectrometerReading(specBuffer);
+        char specString[256] = "";
+        char tmpBuf[128] = "";
 
-			//now iterate through and apend 8 readings per string
-			//send index and then 8 values for offsets 0-7
-			for (index = 0; index < NUM_WAVELENGTHS; index += 8) {
+        //get a reading and place it into our buffer
+        //if spec not connected, default to buffer y = x
+        getSpectrometerReading(specBuffer);
 
-				sprintf(specString, "%c%i;", REQUEST_SPECTRA, index);
-				for (offset = 0; offset < 7; offset++) {
-					sprintf(tmpBuf, "%.2f;", specBuffer[index + offset]);
-					strcat(specString, tmpBuf);
-				}
-				//and leave the ';' out of last entry:
-				sprintf(tmpBuf, "%.2f", specBuffer[index + 7]);
-				strcat(specString, tmpBuf);
+        //now iterate through and apend 8 readings per string
+        //send index and then 8 values for offsets 0-7
+        for (index = 0; index < NUM_WAVELENGTHS; index += 8) {
 
-				sendStringToClient(client, specString);
-				delay(10);
-				k++;
-			}
-			printf("finished data stream! %i Strings sent\n", k);
-			
-		}
+            sprintf(specString, "%c%i;", REQUEST_SPECTRA, index);
+            for (offset = 0; offset < 7; offset++) {
+                sprintf(tmpBuf, "%.2f;", specBuffer[index + offset]);
+                strcat(specString, tmpBuf);
+            }
+            //and leave the ';' out of last entry:
+            sprintf(tmpBuf, "%.2f", specBuffer[index + 7]);
+            strcat(specString, tmpBuf);
+
+            sendStringToClient(client, specString);
+            delay(10);
+            k++;
+        }
+        printf("finished data stream! %i Strings sent\n", k);
+
+    }
 
 
 
-	sprintf(inBuf, "./log_%s.txt", "blerp");
+    sprintf(inBuf, "./log_%s.txt", "blerp");
     log = fopen(inBuf, "a");
     if (!log) {
         exit(-1);
     }
-    
-	/* Now, start the main loop. Listen for bytes, then check
-	 * the first byte for a command code and switch accordingly.
-	 */ 
+
+    /* Now, start the main loop. Listen for bytes, then check
+     * the first byte for a command code and switch accordingly.
+     */
     while (running) {
 
         // prepare a clean buffer... 
@@ -145,19 +145,19 @@ int main(int argc, char **argv)
         switch (inBuf[0]) {
 
         case MOTOR_ON:
-        
+
             sendStringToClient(client, "Turning on motor...\n");
             motor_ON();
             break;
 
         case MOTOR_OFF:
-        
+
             sendStringToClient(client, "Turning off motor...\n");
             motor_OFF();
             break;
 
         case LED_TOGGLE:
-        
+
             if (toggle) {
                 sendStringToClient(client, "Turning on LED...\n");
                 LED_ON();
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
             break;
 
         case REQUEST_PRESSURE:
-        
+
             //if this command comes, start up the thread to
             //continually send pressure readings
             if (pressureThreadRunning) {
@@ -188,8 +188,8 @@ int main(int argc, char **argv)
             break;
 
         case REQUEST_SPECTRA:
-        
-			//if this command comes, start the thread to transmit spectrum
+
+            //if this command comes, start the thread to transmit spectrum
             sendStringToClient(client, "Received spectrum request...\n");
             notCreated = piThreadCreate(spectraThread);
             if (notCreated) {
@@ -199,7 +199,7 @@ int main(int argc, char **argv)
             break;
 
         case SETTINGS:
-        
+
             //if this command comes, we expect to sync settings. read them
             //in from the message to the struct.
             //** Reading from &inbuf[1] because 1st char contains the command itself
@@ -214,7 +214,7 @@ int main(int argc, char **argv)
 
         case QUIT:
         case 'q':
-        
+
             sendStringToClient(client, "Now Quitting!\n");
             running = 0;
             break;
@@ -249,7 +249,7 @@ int main(int argc, char **argv)
  */
 int sendStringToClient(int client, char *string)
 {
-	int err;
+    int err;
     char buf[256];
     memset(buf, 0, sizeof (buf));
     sprintf(buf, string);
