@@ -31,17 +31,6 @@ static FILE *log;
 static int pressureThreadRunning = 0;
 static int spectraThreadRunning = 0;
 
-static enum {
-    MOTOR_ON = 49,
-    MOTOR_OFF,
-    REQUEST_PRESSURE,
-    REQUEST_SPECTRA,
-    SETTINGS,
-    CALIBRATE,
-    LED_TOGGLE,
-    START
-} commands;
-
 int main(int argc, char **argv)
 {
     printf("BTServer started with socket = %s\n", argv[1]);
@@ -58,7 +47,7 @@ int main(int argc, char **argv)
     char pressureReadingString[128];
 
     //NumScans;Time between;Integration time; boxcar width; averages; result
-    specSettings mySpec = {5, 60, 1000, 0, 3,"","",0};
+    specSettings mySpec = {5, 60, 1000, 0, 3, "", "", 0};
 
     printf("sanity check, socket = %i\n", client);
 
@@ -156,19 +145,16 @@ int main(int argc, char **argv)
             motor_OFF();
             break;
 
-        case LED_TOGGLE:
-            if (toggle) {
-                sendStringToClient(client, "Turning on LED...\n");
-                LED_ON();
-                //start current protection thread here if using
-                toggle = 0;
-            } else {
-                sendStringToClient(client, "Turning off LED...\n");
-                LED_OFF();
-                toggle = 1;
-            }
-
+        case LED_ON:
+            sendStringToClient(client, "Turning on LED...\n");
+            LED_ON();
             break;
+
+        case LED_OFF:
+            sendStringToClient(client, "Turning off LED...\n");
+            LED_OFF();
+            break;
+
 
         case REQUEST_PRESSURE:
 
@@ -212,7 +198,11 @@ int main(int argc, char **argv)
             break;
 
         case CALIBRATE:
-			//start or stop an infinite spectrum stream thread here
+            //start or stop an infinite spectrum stream thread here
+            break;
+
+        case START:
+
             break;
 
         case 'F':
@@ -239,7 +229,7 @@ int main(int argc, char **argv)
 
     return 777;
 }
-  
+
 /*
  * Sends input string, up to 256 in lengh, across bluetooth client
  */

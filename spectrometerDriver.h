@@ -23,11 +23,26 @@ typedef struct {
     int integrationTime;
     int boxcarWidth;
     int avgPerScan;
-    
+
     char *doctorName;
     char *patientName;
-    double **result; //2D array of result
+
+    double **spectra //every spectrum used to get the results
+    double **results; //the final result array
 } specSettings;
+
+enum {
+    MOTOR_ON = 97,
+    MOTOR_OFF,
+    REQUEST_PRESSURE,
+    REQUEST_SPECTRA,
+    SETTINGS,
+    CALIBRATE,
+    LED_ON,
+    LED_OFF,
+    START,
+    SELF
+} commands;
 
 
 

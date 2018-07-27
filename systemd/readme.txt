@@ -1,5 +1,6 @@
 place the contents of this folder into etc/systemd/system to 
-auto-start the python script. At the command line, run:
+auto-start the python script. 
+You also need to enable it (one-time only) at the command line:
 	sudo systemctl enable BTServer
 	reboot
 
