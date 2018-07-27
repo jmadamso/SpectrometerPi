@@ -78,7 +78,7 @@ int runExperiment(char command)
     case GETTING_SPECTRA:
         switch (command) {
         case SELF:
-            LED_ON();
+            led_ON();
 
             //grab and total some readings...
             for (i = 0; i < thisExperiment.avgPerScan; i++) {
@@ -97,7 +97,7 @@ int runExperiment(char command)
             //PLACE IT IN THE LIST.
 
             readingsTaken++;
-            LED_OFF();
+            led_OFF();
 
 
             //now, check to see if we have taken enough scans. if not, set a timer and keep waiting. 

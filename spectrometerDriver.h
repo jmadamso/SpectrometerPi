@@ -27,7 +27,7 @@ typedef struct {
     char *doctorName;
     char *patientName;
 
-    double **spectra //every spectrum used to get the results
+    double **spectra; //every spectrum used to get the results
     double **results; //the final result array
 } specSettings;
 
@@ -90,8 +90,8 @@ void motor_OFF();
  * 
  * Exits upon init failure
  */
-void LED_ON();
-void LED_OFF();
+void led_ON();
+void led_OFF();
 
 
 /*boxcarAverage

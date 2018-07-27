@@ -147,12 +147,12 @@ int main(int argc, char **argv)
 
         case LED_ON:
             sendStringToClient(client, "Turning on LED...\n");
-            LED_ON();
+            led_ON();
             break;
 
         case LED_OFF:
             sendStringToClient(client, "Turning off LED...\n");
-            LED_OFF();
+            led_OFF();
             break;
 
 
