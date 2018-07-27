@@ -23,7 +23,13 @@ typedef struct {
     int integrationTime;
     int boxcarWidth;
     int avgPerScan;
+    
+    char *doctorName;
+    char *patientName;
+    double **result; //2D array of result
 } specSettings;
+
+
 
 /*PrintSpecSettings
  * provides a printout of passed-in specsettings struct

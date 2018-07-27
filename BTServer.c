@@ -18,6 +18,7 @@
 #include <wiringPi.h>
 
 #include "./spectrometerDriver.h"
+#include "./experimentFSM.h"
 
 #define PHONE_MAC 88:AD:D2:F1:A2:83
 #define PI_MAC B8:27:EB:AF:AC:37
@@ -36,8 +37,9 @@ static enum {
     REQUEST_PRESSURE,
     REQUEST_SPECTRA,
     SETTINGS,
-    QUIT,
-    LED_TOGGLE
+    CALIBRATE,
+    LED_TOGGLE,
+    START
 } commands;
 
 int main(int argc, char **argv)
@@ -55,8 +57,8 @@ int main(int argc, char **argv)
     char outBuf[1024];
     char pressureReadingString[128];
 
-    //NumScans;Time between;Integration time; boxcar width; averages
-    specSettings mySpec = {5, 60, 1000, 0, 3};
+    //NumScans;Time between;Integration time; boxcar width; averages; result
+    specSettings mySpec = {5, 60, 1000, 0, 3,"","",0};
 
     printf("sanity check, socket = %i\n", client);
 
@@ -107,7 +109,7 @@ int main(int argc, char **argv)
             strcat(specString, tmpBuf);
 
             sendStringToClient(client, specString);
-            delay(10);
+            delay(5);
             k++;
         }
         printf("finished data stream! %i Strings sent\n", k);
@@ -145,19 +147,16 @@ int main(int argc, char **argv)
         switch (inBuf[0]) {
 
         case MOTOR_ON:
-
             sendStringToClient(client, "Turning on motor...\n");
             motor_ON();
             break;
 
         case MOTOR_OFF:
-
             sendStringToClient(client, "Turning off motor...\n");
             motor_OFF();
             break;
 
         case LED_TOGGLE:
-
             if (toggle) {
                 sendStringToClient(client, "Turning on LED...\n");
                 LED_ON();
@@ -190,7 +189,7 @@ int main(int argc, char **argv)
         case REQUEST_SPECTRA:
 
             //if this command comes, start the thread to transmit spectrum
-            sendStringToClient(client, "Received spectrum request...\n");
+            //sendStringToClient(client, "Received spectrum request...\n");
             notCreated = piThreadCreate(spectraThread);
             if (notCreated) {
                 printf("pi thread failed somehow!\n");
@@ -212,11 +211,8 @@ int main(int argc, char **argv)
             printSpecSettings(mySpec);
             break;
 
-        case QUIT:
-        case 'q':
-
-            sendStringToClient(client, "Now Quitting!\n");
-            running = 0;
+        case CALIBRATE:
+			//start or stop an infinite spectrum stream thread here
             break;
 
         case 'F':
@@ -243,7 +239,7 @@ int main(int argc, char **argv)
 
     return 777;
 }
-
+  
 /*
  * Sends input string, up to 256 in lengh, across bluetooth client
  */
