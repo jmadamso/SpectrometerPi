@@ -75,10 +75,9 @@ def main():
     time.sleep(5)
 
     # Make device visible
-    #os.system("hciconfig hci0 piscan")
+    os.system("hciconfig hci0 piscan")
     
-    # Make device invisible
-    #os.system("hciconfig hci0 noscan")
+
  
 	
 
@@ -108,6 +107,8 @@ def main():
 
         # This will block until we get a new connection
         client_sock, client_info = server_sock.accept()
+        #and, if we have accepted a connection, go back invisible:
+        os.system("hciconfig hci0 noscan")
         stop_advertising(server_sock)
         print "Accepted connection from ", client_info
         

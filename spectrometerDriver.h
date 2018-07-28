@@ -31,18 +31,18 @@ typedef struct {
     double **results; //the final result array
 } specSettings;
 
-enum {
+enum server_commands {
     MOTOR_ON = 97,
     MOTOR_OFF,
+	LED_ON,
+    LED_OFF,
     REQUEST_PRESSURE,
     REQUEST_SPECTRA,
     SETTINGS,
     CALIBRATE,
-    LED_ON,
-    LED_OFF,
     START,
-    SELF
-} commands;
+	STOP
+};
 
 
 

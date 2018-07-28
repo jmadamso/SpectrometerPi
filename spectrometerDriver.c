@@ -8,6 +8,7 @@
 #include "./spectrometerDriver.h"
 #include "api/SeaBreezeWrapper.h"
 
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -161,7 +162,7 @@ void motor_OFF()
     pwmWrite(PWM_PIN, 0);
 }
 
-void LED_ON()
+void led_ON()
 {
     if (!inited) {
         if (Hardware_Init()) {
@@ -172,7 +173,7 @@ void LED_ON()
     digitalWrite(LED_PIN, 1);
 }
 
-void LED_OFF()
+void led_OFF()
 {
     if (!inited) {
         if (Hardware_Init()) {

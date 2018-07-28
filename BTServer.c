@@ -47,7 +47,7 @@ int main(int argc, char **argv)
     char pressureReadingString[128];
 
     //NumScans;Time between;Integration time; boxcar width; averages; result
-    specSettings mySpec = {5, 60, 1000, 0, 3, "", "", 0};
+    specSettings mySpec = {5, 60, 1000, 0, 3, "", "", 0, 0};
 
     printf("sanity check, socket = %i\n", client);
 
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
             strcat(specString, tmpBuf);
 
             sendStringToClient(client, specString);
-            delay(5);
+            delay(10);
             k++;
         }
         printf("finished data stream! %i Strings sent\n", k);
@@ -202,8 +202,13 @@ int main(int argc, char **argv)
             break;
 
         case START:
-
+			initExperiment(mySpec);
+			runExperiment(START_EXPERIMENT);
             break;
+			
+		case STOP:
+			runExperiment(STOP_EXPERIMENT);
+			break;
 
         case 'F':
             running = sendStringToClient(client, "You have found a debug message! hehe :^)\n");
@@ -218,6 +223,9 @@ int main(int argc, char **argv)
         }
     }
 
+	//now let the experiment finish even if client disconnects
+	while(experimentRunning());
+	
     // close connection
     pressureThreadRunning = 0;
     fprintf(log, "SESSION END\n\n");
