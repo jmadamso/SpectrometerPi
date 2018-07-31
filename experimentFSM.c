@@ -184,6 +184,7 @@ int runExperiment(char command)
         //spectral integration? peak detection? Whatever. Do it here. 
 
 		experimentState = IDLE;
+		inited = 0;
         break;
 
     default:
@@ -203,6 +204,9 @@ if(verbose) {
 
 int experimentRunning()
 {
+	
+	//return esperimentState == IDLE ? 0 : 1;
+	
     if (experimentState == IDLE) {
 		return 0;
     } else {

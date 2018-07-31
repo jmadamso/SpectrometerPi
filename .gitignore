@@ -3,3 +3,4 @@ log_*.txt
 *.o
 push*
 pull*
+*_old.*

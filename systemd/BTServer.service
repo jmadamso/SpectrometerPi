@@ -7,7 +7,7 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/home/pi/Desktop/SpectrometerPi
-ExecStart=/home/pi/Desktop/SpectrometerPi/BTServerPython.py
+ExecStart=/home/pi/Desktop/SpectrometerPi/BTServer
 Restart=always
 
 [Install]

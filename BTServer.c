@@ -25,6 +25,7 @@
 
 #define PRESSURE_READING_RATE 750
 
+int getClient();
 int sendStringToClient(int Client, char *string);
 
 static FILE *log;
@@ -33,90 +34,91 @@ static int spectraThreadRunning = 0;
 
 int main(int argc, char **argv)
 {
-    printf("BTServer started with socket = %s\n", argv[1]);
+	char inBuf[1024];
+    char outBuf[1024];    
+    
+    
 
+    
     int i, k;
     int notCreated;
-    int running = 1;
+    int deviceConnected = 0;
     int toggle = 1;
     int bytes_read;
-    int client = atoi(argv[1]);
+    
+    int serverSock = 0, client = 0;
 
-    char inBuf[1024];
-    char outBuf[1024];
     char pressureReadingString[128];
 
     //NumScans;Time between;Integration time; boxcar width; averages; result
     specSettings mySpec = {5, 60, 1000, 0, 3, "", "", 0, 0};
-
-    printf("sanity check, socket = %i\n", client);
-
-    //THREAD DECLARATIONS GO HERE BECAUSE ITS ANNOYING TO DECLARE
-    //THEM OUTSIDE OF main()
-
-    /*pressureThread
-     * when started, streams pressure readings at specified rate.
-     * Terminates when main() sets pressureThreadRunning back to 0. 
-     */
-    PI_THREAD(pressureThread)
-    {
-        while (pressureThreadRunning) {
-            sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
-            sendStringToClient(client, pressureReadingString);
-            delay(PRESSURE_READING_RATE);
-        }
-    }
-
+    
     /*spectraThread
      * When started, beams several strings containing spectrum data
      * String delimited by ';'
      * [command][index offset];[reading]; (*8)
      */
-    PI_THREAD(spectraThread)
-    {
-        int index, offset = 0, k = 0;
-        double specBuffer[NUM_WAVELENGTHS];
+	PI_THREAD(spectraThread)
+	{
+		int index, offset = 0, k = 0;
+		double specBuffer[NUM_WAVELENGTHS];
 
-        char specString[256] = "";
-        char tmpBuf[128] = "";
+		char specString[256] = "";
+		char tmpBuf[128] = "";
 
-        //get a reading and place it into our buffer
-        //if spec not connected, default to buffer y = x
-        getSpectrometerReading(specBuffer);
+		//get a reading and place it into our buffer
+		//if spec not connected, default to buffer y = x
+		getSpectrometerReading(specBuffer);
 
-        //now iterate through and apend 8 readings per string
-        //send index and then 8 values for offsets 0-7
-        for (index = 0; index < NUM_WAVELENGTHS; index += 8) {
+		//now iterate through and apend 8 readings per string
+		//send index and then 8 values for offsets 0-7
+		for (index = 0; index < NUM_WAVELENGTHS; index += 8) {
 
-            sprintf(specString, "%c%i;", REQUEST_SPECTRA, index);
-            for (offset = 0; offset < 7; offset++) {
-                sprintf(tmpBuf, "%.2f;", specBuffer[index + offset]);
-                strcat(specString, tmpBuf);
-            }
-            //and leave the ';' out of last entry:
-            sprintf(tmpBuf, "%.2f", specBuffer[index + 7]);
-            strcat(specString, tmpBuf);
+			sprintf(specString, "%c%i;", REQUEST_SPECTRA, index);
+			for (offset = 0; offset < 7; offset++) {
+				sprintf(tmpBuf, "%.2f;", specBuffer[index + offset]);
+				strcat(specString, tmpBuf);
+			}
+			//and leave the ';' out of last entry:
+			sprintf(tmpBuf, "%.2f", specBuffer[index + 7]);
+			strcat(specString, tmpBuf);
 
-            sendStringToClient(client, specString);
-            delay(10);
-            k++;
-        }
-        printf("finished data stream! %i Strings sent\n", k);
+			sendStringToClient(client, specString);
+			delay(5);
+			k++;
+		}
+		printf("finished data stream! %i Strings sent\n", k);
 
-    }
+	}
 
+	/*pressureThread
+		 * when started, streams pressure readings at specified rate.
+		 * Terminates when main() sets pressureThreadRunning back to 0. 
+		 */
+	PI_THREAD(pressureThread)
+	{
+		while (pressureThreadRunning) {
+			sprintf(pressureReadingString, "%c%i", REQUEST_PRESSURE, getPressureReading());
+			sendStringToClient(client, pressureReadingString);
+			delay(PRESSURE_READING_RATE);
+		}
+	}
+		
+    
+	//main loop: continually seek a connection and fire off threads
+	//to handle it
+	while(1) {
+		sprintf(inBuf, "./log_%s.txt", "blerp");
+		log = fopen(inBuf, "a");
+		if (!log) {
+			exit(-1);
+		}
+		
+		serverSock = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
+		client = getClient(serverSock);
+		deviceConnected = 1;
 
-
-    sprintf(inBuf, "./log_%s.txt", "blerp");
-    log = fopen(inBuf, "a");
-    if (!log) {
-        exit(-1);
-    }
-
-    /* Now, start the main loop. Listen for bytes, then check
-     * the first byte for a command code and switch accordingly.
-     */
-    while (running) {
+		while (deviceConnected) {
 
         // prepare a clean buffer... 
         memset(inBuf, 0, sizeof (inBuf));
@@ -125,10 +127,10 @@ int main(int argc, char **argv)
 
         if (bytes_read > 0) {
             printf("received [%s]\n", inBuf);
-            fprintf(log, "received [%s]\n", inBuf);
+            //fprintf(log, "received [%s]\n", inBuf);
         } else {
             printf("Client has disconnected. Noticed upon Read.\n");
-            running = 0;
+            deviceConnected = 0;
             break;
         }
 
@@ -211,35 +213,85 @@ int main(int argc, char **argv)
 			break;
 
         case 'F':
-            running = sendStringToClient(client, "You have found a debug message! hehe :^)\n");
+            deviceConnected = sendStringToClient(client, "You have found a debug message! hehe :^)\n");
             break;
 
         default:
             if ((int) inBuf[0] == 0) {
                 printf("got null\n", client);
             }
-            running = sendStringToClient(client, "Unrecognized Inbound Message!!\n");
+            deviceConnected = sendStringToClient(client, "Unrecognized Inbound Message!!\n");
             break;
         }
     }
+		
+		printf("restarting listening loop!\n");
+		
+		pressureThreadRunning = 0;
+		
+		close(client);
+		close(serverSock);
+		fclose(log);
+		
+	}//end main listening loop
+	
+	
 
-	//now let the experiment finish even if client disconnects
-	while(experimentRunning());
 	
     // close connection
-    pressureThreadRunning = 0;
-    fprintf(log, "SESSION END\n\n");
+    //fprintf(log, "SESSION END\n\n");
     printf("SESSION END\n");
     //allow thread to close. Not sure if we need to do this but
     //it doesn't hurt.
-    delay(2000);
-    fclose(log);
 
-    return 777;
+
+    return 0;
 }
 
+		
 /*
- * Sends input string, up to 256 in lengh, across bluetooth client
+ * getClient
+ * Accepts an open server socket, listens on the socket for connections,
+ * and returns the client it finds. 
+ */
+int getClient(int serverSock) {
+	
+		char inBuf[1023];
+			// allocate socket
+		struct sockaddr_rc loc_addr = {0}, rem_addr = {0};
+		socklen_t opt = sizeof (rem_addr);
+
+
+		// bind socket to port 1 of the first available 
+		// local bluetooth adapter
+		loc_addr.rc_family = AF_BLUETOOTH;
+		loc_addr.rc_bdaddr = *BDADDR_ANY;
+		loc_addr.rc_channel = (uint8_t) 1;
+		printf("Attempting to bind socket...\n");
+
+
+		bind(serverSock, (struct sockaddr *) &loc_addr, sizeof (loc_addr));
+
+		// put socket into listening mode
+		printf("Listening for connections...\n");
+
+		listen(serverSock, 1);
+
+		// accept one connection
+		int client = accept(serverSock, (struct sockaddr *) &rem_addr, &opt);
+
+		ba2str(&rem_addr.rc_bdaddr, inBuf);
+		fprintf(stderr, "accepted connection from %s\n", inBuf);
+		//fprintf(log, "accepted connection from %s\n", inBuf);
+		
+		return client;
+
+}
+
+
+/*
+ * Sends input string, up to 256 in lengh, across bluetooth client.
+ * returns 1 if connected and message sent; else returns 0
  */
 int sendStringToClient(int client, char *string)
 {
@@ -257,7 +309,7 @@ int sendStringToClient(int client, char *string)
     } else {
         //we want to return 1 if still running
         printf("Response: %s\n", buf);
-        fprintf(log, "Response: %s\n", buf);
+        //fprintf(log, "Response: %s\n", buf);
         return 1;
     }
 }
