@@ -102,8 +102,8 @@ int getSpectrometerReading(double *inBuff)
 
     //default to y=x
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
-        spectrumArray[i] = i;
-        inBuff[i] = i;
+        spectrumArray[i] = (i + 2048);
+        //inBuff[i] = i;
     }
 
     errorCode = 0;

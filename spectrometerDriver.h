@@ -40,8 +40,14 @@ enum server_commands {
     REQUEST_SPECTRA,
     SETTINGS,
     CALIBRATE,
-    START,
-	STOP
+	EXP_START,       	//begin the experiment
+    EXP_STOP,           //stop the experiment
+    EXP_STATUS,         //return status (available/running) and settings
+                                //of current experiment
+    EXP_RESULTS,        //begin stream process of result array and all spectra
+    EXP_LIST,           //return a list of completed experiments
+    EXP_LOOKUP,         //begin stream process of specific experiment
+    EXP_DELETE,     
 };
 
 

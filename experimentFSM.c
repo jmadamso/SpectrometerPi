@@ -7,7 +7,7 @@
 #include <wiringPi.h>
 #include <stdlib.h>
 #include <stdio.h>
- 
+
 #include "./spectrometerDriver.h"
 #include "./experimentFSM.h"
 
@@ -26,8 +26,6 @@ static enum experiment_states {
     WRITING_RESULTS,
 } experimentState = IDLE;
 
-
-
 int initExperiment(specSettings spec)
 {
     thisExperiment = spec;
@@ -38,18 +36,23 @@ int initExperiment(specSettings spec)
 
 int runExperiment(char command)
 {
-	if(verbose) {
-		printf("running fsm in state %i with command %i \n",experimentState,command);
+	if(!inited) {
+		printf("\n\n Aw damn. Tried to run experiment without init. \n\n");
+		while(1);
 	}
+	
+    if (verbose) {
+        printf("running fsm in state %i with command %i \n", experimentState, command);
+    }
 
 
     //this timer thread will post its event to the experiment FSM after the set amount of time
 
     PI_THREAD(timerThread)
     {
-		if(verbose) {
-			printf("starting a timer for %i seconds\n",thisExperiment.timeBetweenScans);
-		}
+        if (verbose) {
+            printf("starting a timer for %i seconds\n", thisExperiment.timeBetweenScans);
+        }
         //delay accepts argument in milliseconds
         delay(thisExperiment.timeBetweenScans * 1000);
         runExperiment(TIMEOUT);
@@ -62,9 +65,10 @@ int runExperiment(char command)
 
         switch (command) {
         case START_EXPERIMENT:
+				
+			//TO DO:	
+			//CHECK HERE IF INITED!!!!!
 
-			
-			
             //motor ON
 
             experimentState = GETTING_SPECTRA;
@@ -83,12 +87,12 @@ int runExperiment(char command)
         //upon entering this state, we grab a spectrum reading first thing: 
     case GETTING_SPECTRA:
 
-	
+
         switch (command) {
         case SELF:
-			if(verbose) {
-				printf("about to get a spectrum\n");
-			}
+            if (verbose) {
+                printf("about to get a spectrum\n");
+            }
             led_ON();
 
             //grab and total some readings...
@@ -110,9 +114,9 @@ int runExperiment(char command)
             readingsTaken++;
             led_OFF();
 
-				if(verbose) {
-					printf("finished getting reading number %i\n",readingsTaken);
-				}
+            if (verbose) {
+                printf("finished getting reading number %i\n", readingsTaken);
+            }
             //now, check to see if we have taken enough scans. if not, set a timer and keep waiting. 
             if (readingsTaken < thisExperiment.numScans) {
                 //start a timer thread. these threads return 0 if successfully started:
@@ -121,10 +125,10 @@ int runExperiment(char command)
                     printf("pi thread failed somehow!\n");
                     exit(5);
                 }
-				
-				//give the thread a moment to set up, because we break immediately after:
-				delay(100);
-				
+
+                //give the thread a moment to set up, because we break immediately after:
+                delay(100);
+
                 experimentState = AWAITING_TIMEOUT;
                 break;
             } else {
@@ -137,7 +141,8 @@ int runExperiment(char command)
             break; //break SELF
 
         case STOP_EXPERIMENT:
-
+			inited = 0;
+			experimentState = IDLE;
             break;
 
         default:
@@ -149,9 +154,9 @@ int runExperiment(char command)
         break; //break GETTING_SPECTRA
 
     case AWAITING_TIMEOUT:
-			if(verbose) {
-				printf("awaiting timeout...\n");
-			}
+        if (verbose) {
+            printf("awaiting timeout...\n");
+        }
         switch (command) {
 
             //when we finally get here, the timer has expired and we
@@ -160,15 +165,16 @@ int runExperiment(char command)
             //don't need at least one more reading, so we always transition
             //upon this timer. 
         case TIMEOUT:
-			if(verbose) {
-				printf("got timeout!\n");
-			}
+            if (verbose) {
+                printf("got timeout!\n");
+            }
             experimentState = GETTING_SPECTRA;
             runExperiment(SELF);
             break;
 
         case STOP_EXPERIMENT:
-
+			inited = 0;
+			experimentState = IDLE;
             break;
 
         }
@@ -176,15 +182,18 @@ int runExperiment(char command)
 
 
     case WRITING_RESULTS:
-			if(verbose) {
-				printf("finished getting spectra.\n");
-			}
+        if (verbose) {
+            printf("\nfinished getting spectra.\nWRITING RESULTS!\n\n");
+        }
+		
+		//TO DO:
         //whenever we make it to this state, we expect to have a complete
         //set of spectra taken, and may begin processing the results. 
         //spectral integration? peak detection? Whatever. Do it here. 
+		//save to disk here too. 
 
-		experimentState = IDLE;
-		inited = 0;
+        experimentState = IDLE;
+        inited = 0;
         break;
 
     default:
@@ -196,22 +205,26 @@ int runExperiment(char command)
     }
 
 
-if(verbose) {
-	printf("FSM awaits next run command.\n");
-	
-}
+    //if (verbose) {
+        //printf("FSM awaits next run command.\n");
+
+    //}
 }
 
 int experimentRunning()
 {
-	
-	//return esperimentState == IDLE ? 0 : 1;
-	
+
+    //return experimentState == IDLE ? 0 : 1;
+
     if (experimentState == IDLE) {
-		return 0;
+        return 0;
     } else {
-		return 1;
+        return 1;
     }
+}
+
+specSettings getExperimentSettings() {
+	return thisExperiment;	
 }
 
 int experimentIsInited()

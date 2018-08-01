@@ -12,18 +12,22 @@ enum FSM_commands {
 	TIMEOUT,
 	START_EXPERIMENT,
 	STOP_EXPERIMENT
-	
 };
 
 
 //initialize an experiment with a bundle of experiment
 //settings, as well as the socket we want to communicate on
 int initExperiment(specSettings spec);
+int experimentIsInited();
 
 //run the experiment with an incomming command. 
 int runExperiment(char command);
 
+//return true if running
 int experimentRunning();
 
-int experimentIsInited();
+//return the settings being used currently
+specSettings getExperimentSettings();
+
+
 
