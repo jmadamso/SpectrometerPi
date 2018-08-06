@@ -11,7 +11,13 @@
 #include "./spectrometerDriver.h"
 #include "./experimentFSM.h"
 
+static char *getStateString(int s);
+
+
+
+
 static specSettings thisExperiment;
+static char experimentStatusMessage[512] = "Uninitialized";
 static int inited = 0;
 static int readingsTaken = 0;
 
@@ -36,14 +42,16 @@ int initExperiment(specSettings spec)
 
 int runExperiment(char command)
 {
-	if(!inited) {
-		printf("\n\n Aw damn. Tried to run experiment without init. \n\n");
-		while(1);
-	}
-	
+    if (!inited) {
+        printf("\n\n Aw damn. Tried to run experiment without init. \n\n");
+        while (1);
+    }
+
     if (verbose) {
         printf("running fsm in state %i with command %i \n", experimentState, command);
     }
+
+    sprintf(experimentStatusMessage, "The experiment process is currently %s\n", getStateString(experimentState));
 
 
     //this timer thread will post its event to the experiment FSM after the set amount of time
@@ -65,9 +73,9 @@ int runExperiment(char command)
 
         switch (command) {
         case START_EXPERIMENT:
-				
-			//TO DO:	
-			//CHECK HERE IF INITED!!!!!
+
+            //TO DO:	
+            //CHECK HERE IF INITED!!!!!
 
             //motor ON
 
@@ -141,8 +149,8 @@ int runExperiment(char command)
             break; //break SELF
 
         case STOP_EXPERIMENT:
-			inited = 0;
-			experimentState = IDLE;
+            inited = 0;
+            experimentState = IDLE;
             break;
 
         default:
@@ -173,8 +181,8 @@ int runExperiment(char command)
             break;
 
         case STOP_EXPERIMENT:
-			inited = 0;
-			experimentState = IDLE;
+            inited = 0;
+            experimentState = IDLE;
             break;
 
         }
@@ -185,12 +193,14 @@ int runExperiment(char command)
         if (verbose) {
             printf("\nfinished getting spectra.\nWRITING RESULTS!\n\n");
         }
-		
-		//TO DO:
+
+        //TO DO:
         //whenever we make it to this state, we expect to have a complete
         //set of spectra taken, and may begin processing the results. 
         //spectral integration? peak detection? Whatever. Do it here. 
-		//save to disk here too. 
+        //save to disk here too. 
+
+        //also, is there some way here to automatically update the app?
 
         experimentState = IDLE;
         inited = 0;
@@ -206,7 +216,7 @@ int runExperiment(char command)
 
 
     //if (verbose) {
-        //printf("FSM awaits next run command.\n");
+    //printf("FSM awaits next run command.\n");
 
     //}
 }
@@ -223,8 +233,15 @@ int experimentRunning()
     }
 }
 
-specSettings getExperimentSettings() {
-	return thisExperiment;	
+specSettings getExperimentSettings()
+{
+    return thisExperiment;
+}
+
+char *getExpStatusMessage()
+{
+    sprintf(experimentStatusMessage, "The experiment process is currently %s\n", getStateString(experimentState));
+    return experimentStatusMessage;
 }
 
 int experimentIsInited()
@@ -232,3 +249,30 @@ int experimentIsInited()
     return inited;
 }
 
+
+//private function to get strings from states
+
+static char *getStateString(int s)
+{
+    switch (s) {
+    case IDLE:
+        return "Idle";
+        break;
+
+    case GETTING_SPECTRA:
+        return "Taking Measurement";
+        break;
+
+    case AWAITING_TIMEOUT:
+        return "Awaiting Next Measurement";
+        break;
+
+    case WRITING_RESULTS:
+        return "Writing Results to File";
+        break;
+
+    default:
+        return "In an unknown state?!";
+        break;
+    }
+}

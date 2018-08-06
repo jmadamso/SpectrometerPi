@@ -36,21 +36,23 @@ int main(int argc, char **argv)
 {
     char inBuf[1024];
     char outBuf[1024];
-	char pressureReadingString[128];
+    char pressureReadingString[128];
+    char dn[1024];
+    char pn[1024];
 
 
 
     int i, k;
     int notCreated;
-	
+
     int deviceConnected = 0;
-	
+
     int toggle = 1;
     int bytes_read;
 
     int serverSock = 0, client = 0;
 
-    
+
 
     //NumScans;Time between;Integration time; boxcar width; averages; result
     specSettings mySpec = {5, 60, 1000, 0, 3, "Dr. Smith", "John Deere", 0, 0};
@@ -90,16 +92,16 @@ int main(int argc, char **argv)
             k++;
         }
         printf("finished data stream! %i Strings sent\n", k);
-		
-		//if we are streaming readings, fire up another one of these threads before return
-		spectraThreadRunning = 0;
-		if(spectraThreadRunning) {
-			int notCreated = piThreadCreate(spectraThread);
-                    if (notCreated) {
-                        printf("pi thread failed somehow!\n");
-                        exit(5);
-                    }
-		}
+
+        //if we are streaming readings, fire up another one of these threads before return
+        spectraThreadRunning = 0;
+        if (spectraThreadRunning) {
+            int notCreated = piThreadCreate(spectraThread);
+            if (notCreated) {
+                printf("pi thread failed somehow!\n");
+                exit(5);
+            }
+        }
 
     }
 
@@ -115,32 +117,58 @@ int main(int argc, char **argv)
             delay(PRESSURE_READING_RATE);
         }
     }
-	
-	/*statusThread
-	 * when started, streams info regarding the current experiment
-	 */
-	 PI_THREAD(statusThread)
+
+    /*statusThread
+     * when started, streams info regarding the current experiment
+     */
+    PI_THREAD(statusThread)
     {
-		if(!experimentIsInited()) {
-			initExperiment(mySpec);
-		}
-		
-		specSettings s = getExperimentSettings();
-		
-		sprintf(outBuf,"%c;%i;%s;%s;%i;%i;%i;%i;%i", 
-						EXP_STATUS,
-						experimentRunning(),
-						s.doctorName,
-						s.patientName,
-						s.numScans, 
-						s.timeBetweenScans,
-                        s.integrationTime, 
-						s.boxcarWidth, 
-						s.avgPerScan);
-		//sendStringTo Client returns 1 if successful write
-		deviceConnected = sendStringToClient(client,outBuf);
-        
+        if (!experimentIsInited()) {
+            initExperiment(mySpec);
+        }
+
+        specSettings s = getExperimentSettings();
+
+
+
+        sprintf(outBuf, "%c%i;%s;%s;%i;%i;%i;%i;%i;%s",
+                EXP_STATUS,
+                experimentRunning(),
+                s.doctorName,
+                s.patientName,
+                s.numScans,
+                s.timeBetweenScans,
+                s.integrationTime,
+                s.boxcarWidth,
+                s.avgPerScan,
+                getExpStatusMessage());
+        //sendStringTo Client returns 1 if successful write
+        deviceConnected = sendStringToClient(client, outBuf);
+
     }
+
+    PI_THREAD(experimentFinishedListener)
+    {
+        printf("entered listener\n");
+
+        //check every 5 seconds if the experiment is still going.
+        //when finished, zap the updated status:
+        do {
+            delay(5000);
+            //printf("checking exp status; found %i\n", experimentRunning());
+        } while (experimentRunning());
+
+
+        //now zap the new status over: 
+        printf("Sending status to client\n");
+        notCreated = piThreadCreate(statusThread);
+        if (notCreated) {
+            printf("pi thread failed somehow!\n");
+            exit(5);
+        }
+    }
+
+
 
 
     //main loop: continually seek a connection and fire off threads
@@ -216,7 +244,7 @@ int main(int argc, char **argv)
 
                 //if this command comes, start the thread to transmit spectrum
                 //sendStringToClient(client, "Received spectrum request...\n");
-				spectraThreadRunning = 0;
+                spectraThreadRunning = 0;
                 notCreated = piThreadCreate(spectraThread);
                 if (notCreated) {
                     printf("pi thread failed somehow!\n");
@@ -231,43 +259,65 @@ int main(int argc, char **argv)
                 //** Reading from &inbuf[1] because 1st char contains the command itself
 
                 //NumScans;Time between;Integration time; boxcar width; averages
-                sscanf(&inBuf[1], "%i;%i;%i;%i;%i", &mySpec.numScans, &mySpec.timeBetweenScans,
-                        &mySpec.integrationTime, &mySpec.boxcarWidth,
-                        &mySpec.avgPerScan);
+                sscanf(&inBuf[1], "%i;%i;%i;%i;%i;%[^\n]", &mySpec.numScans, &mySpec.timeBetweenScans,
+                        &mySpec.integrationTime, &mySpec.boxcarWidth, &mySpec.avgPerScan,
+                         outBuf);
+                
+                //printf("trying to toke %s\n",outBuf);
+                char *ptr = strtok(outBuf,";");
+                strcpy(dn,ptr);
+                ptr = strtok(NULL,";");
+                strcpy(pn,ptr);
+                mySpec.doctorName = dn;
+                mySpec.patientName = pn;
                 applySpecSettings(mySpec);
                 printSpecSettings(mySpec);
                 break;
 
             case CALIBRATE:
                 //start or stop an infinite spectrum stream thread here
-				spectraThreadRunning = spectraThreadRunning ? 0 : 1;
-				notCreated = piThreadCreate(spectraThread);
-                    if (notCreated) {
-                        printf("pi thread failed somehow!\n");
-                        exit(5);
-                    }
+                spectraThreadRunning = spectraThreadRunning ? 0 : 1;
+                notCreated = piThreadCreate(spectraThread);
+                if (notCreated) {
+                    printf("pi thread failed somehow!\n");
+                    exit(5);
+                }
                 break;
 
-			//start and stop commands -- 
+                //start and stop commands -- 
             case EXP_START:
-				applySpecSettings(mySpec);
+                applySpecSettings(mySpec);
                 initExperiment(mySpec);
                 runExperiment(START_EXPERIMENT);
+
+                //update the client with our new status:
+                notCreated = piThreadCreate(statusThread);
+                if (notCreated) {
+                    printf("pi thread failed somehow!\n");
+                    exit(5);
+                }
+                //start a thread to watch for the end now:
+                notCreated = piThreadCreate(experimentFinishedListener);
+                if (notCreated) {
+                    printf("pi thread failed somehow!\n");
+                    exit(5);
+                }
+
                 break;
 
             case EXP_STOP:
                 runExperiment(STOP_EXPERIMENT);
                 break;
 
-			//if the user wants status, create a worker thread to beam it over
-			case EXP_STATUS:
-				notCreated = piThreadCreate(statusThread);
-                    if (notCreated) {
-                        printf("pi thread failed somehow!\n");
-                        exit(5);
-                    }
-				break;
-				
+                //if the user wants status, create a worker thread to beam it over
+            case EXP_STATUS:
+                notCreated = piThreadCreate(statusThread);
+                if (notCreated) {
+                    printf("pi thread failed somehow!\n");
+                    exit(5);
+                }
+                break;
+
             case 'F':
                 deviceConnected = sendStringToClient(client, "You have found a debug message! hehe :)\n");
                 break;
@@ -284,7 +334,7 @@ int main(int argc, char **argv)
         printf("restarting listening loop!\n");
 
         pressureThreadRunning = 0;
-		spectraThreadRunning = 0;
+        spectraThreadRunning = 0;
 
         close(client);
         close(serverSock);

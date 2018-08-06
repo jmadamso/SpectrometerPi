@@ -73,6 +73,8 @@ int applySpecSettings(specSettings in)
     thisSpec.integrationTime = in.integrationTime;
     thisSpec.boxcarWidth = in.boxcarWidth;
     thisSpec.avgPerScan = in.avgPerScan;
+    thisSpec.doctorName = in.doctorName;
+    thisSpec.patientName = in.patientName;
 
     if (!inited) {
         if (Hardware_Init() != 0) {

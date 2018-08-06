@@ -29,5 +29,8 @@ int experimentRunning();
 //return the settings being used currently
 specSettings getExperimentSettings();
 
+//returns a human readable string describing current experiment
+char *getExpStatusMessage();
+
 
 
