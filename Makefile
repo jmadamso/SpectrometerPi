@@ -1,13 +1,13 @@
-all: BTServer specDriver.o
-BTServer: BTServer.c specDriver.o exp.o
+all: BTServer specDriver.o exp.o
+BTServer: BTServer.c specDriver.o exp.o 
 	gcc -W BTServer.c specDriver.o exp.o -o BTServer -lbluetooth -lseabreeze -lusb -lwiringPi
 	make clean
 
-specDriver.o: spectrometerDriver.c
-	gcc -c spectrometerDriver.c -o specDriver.o 
+specDriver.o: ./src/spectrometerDriver.c
+	gcc -c ./src/spectrometerDriver.c -o specDriver.o 
 	
-exp.o: experimentFSM.c
-	gcc -c experimentFSM.c -o exp.o
+exp.o: ./src/experimentFSM.c
+	gcc -c ./src/experimentFSM.c -o exp.o
 
 clean:
 	rm *.o

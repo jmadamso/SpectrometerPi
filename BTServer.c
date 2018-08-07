@@ -1,8 +1,6 @@
 /*
  * BTServerC
  * 
- * Receives a socket from the python service and serves the client,
- * responding to commands 
  * 
  * before compiling, stop the OS from running this with:
  * sudo systemctl stop BTServer
@@ -17,16 +15,17 @@
 #include <time.h>
 #include <wiringPi.h>
 
-#include "./spectrometerDriver.h"
-#include "./experimentFSM.h"
+#include "./include/spectrometerDriver.h"
+#include "./include/experimentFSM.h"
 
 #define PHONE_MAC 88:AD:D2:F1:A2:83
 #define PI_MAC B8:27:EB:AF:AC:37
 
 #define PRESSURE_READING_RATE 750
 
-int getClient();
-int sendStringToClient(int Client, char *string);
+static int getClient();
+static int sendStringToClient(int client, char *string); 
+static int sendDoubleArrayToClient(int client,double *arr, char command) ;
 
 static FILE *log;
 static int pressureThreadRunning = 0;
@@ -64,40 +63,20 @@ int main(int argc, char **argv)
      */
     PI_THREAD(spectraThread)
     {
-        int index, offset = 0, k = 0;
         double specBuffer[NUM_WAVELENGTHS];
-
-        char specString[256] = "";
-        char tmpBuf[128] = "";
 
         //get a reading and place it into our buffer
         //if spec not connected, default to buffer y = x
         getSpectrometerReading(specBuffer);
 
-        //now iterate through and apend 8 readings per string
-        //send index and then 8 values for offsets 0-7
-        for (index = 0; index < NUM_WAVELENGTHS; index += 8) {
-
-            sprintf(specString, "%c%i;", REQUEST_SPECTRA, index);
-            for (offset = 0; offset < 7; offset++) {
-                sprintf(tmpBuf, "%.2f;", specBuffer[index + offset]);
-                strcat(specString, tmpBuf);
-            }
-            //and leave the ';' out of last entry:
-            sprintf(tmpBuf, "%.2f", specBuffer[index + 7]);
-            strcat(specString, tmpBuf);
-
-            sendStringToClient(client, specString);
-            //delay(15);
-            k++;
-        }
-        printf("finished data stream! %i Strings sent\n", k);
+		//now zap it over:
+		sendDoubleArrayToClient(client, specBuffer,REQUEST_SPECTRA);
 
         //if we are streaming readings, fire up another one of these threads before return
         spectraThreadRunning = 0;
         if (spectraThreadRunning) {
             int notCreated = piThreadCreate(spectraThread);
-            if (notCreated) {
+            if (piThreadCreate(spectraThread)) {
                 printf("pi thread failed somehow!\n");
                 exit(5);
             }
@@ -118,20 +97,21 @@ int main(int argc, char **argv)
         }
     }
 
+
+
     /*statusThread
      * when started, streams info regarding the current experiment
      */
     PI_THREAD(statusThread)
     {
-        if (!experimentIsInited()) {
-            initExperiment(mySpec);
-        }
-
-        specSettings s = getExperimentSettings();
-
-
-
-        sprintf(outBuf, "%c%i;%s;%s;%i;%i;%i;%i;%i;%s",
+		//start with some default settings that we don't really care
+		//about if the experiment is idle.
+		specSettings s = {0,0,0,0,0,"","",0,0};
+        if (experimentIsInited()) {
+			s = getExperimentSettings();	
+		}
+		
+		sprintf(outBuf, "%c%i;%s;%s;%i;%i;%i;%i;%i;%s",
                 EXP_STATUS,
                 experimentRunning(),
                 s.doctorName,
@@ -142,32 +122,38 @@ int main(int argc, char **argv)
                 s.boxcarWidth,
                 s.avgPerScan,
                 getExpStatusMessage());
+
         //sendStringTo Client returns 1 if successful write
         deviceConnected = sendStringToClient(client, outBuf);
+        //printf("sending status string: %s\n",outBuf);
 
     }
+    
+    int startStatusThread() {
+		
+	if(piThreadCreate(statusThread)) {
+		return 1;
+		} 
+	return 0;
+	}
 
-    PI_THREAD(experimentFinishedListener)
+
+	/*
+    PI_THREAD(experimentStatusListener)
     {
-        printf("entered listener\n");
-
-        //check every 5 seconds if the experiment is still going.
-        //when finished, zap the updated status:
-        do {
-            delay(5000);
-            //printf("checking exp status; found %i\n", experimentRunning());
-        } while (experimentRunning());
-
-
-        //now zap the new status over: 
-        printf("Sending status to client\n");
-        notCreated = piThreadCreate(statusThread);
-        if (notCreated) {
-            printf("pi thread failed somehow!\n");
-            exit(5);
-        }
+        //printf("entered listener\n");
+		//zap over a status whenever the experiment sets its flag:
+		while(experimentRunning()) {
+			while(!readyToUpdate());
+			if(piThreadCreate(statusThread)) {
+				printf("pi thread failed somehow :(\n");
+				while("dangit");
+			}
+			//clear the update flag now that we have update:
+			clearUpdate();
+		} 
     }
-
+*/
 
 
 
@@ -254,20 +240,26 @@ int main(int argc, char **argv)
 
             case SETTINGS:
 
-                //if this command comes, we expect to sync settings. read them
+                //if this command comes, we expect to receive settings. read them
                 //in from the message to the struct.
-                //** Reading from &inbuf[1] because 1st char contains the command itself
+                
+                //Read from &inbuf[1] because 1st char contains the command itself
 
                 //NumScans;Time between;Integration time; boxcar width; averages
                 sscanf(&inBuf[1], "%i;%i;%i;%i;%i;%[^\n]", &mySpec.numScans, &mySpec.timeBetweenScans,
                         &mySpec.integrationTime, &mySpec.boxcarWidth, &mySpec.avgPerScan,
                          outBuf);
                 
-                //printf("trying to toke %s\n",outBuf);
+                printf("trying to tokenize %s\n",outBuf);
+                
+                //since sscanf is finnicky with strings, we just scan
+                //in one above, then tokenize that big string, knowing what
+                //order they will be in. Clunky but functional. 
                 char *ptr = strtok(outBuf,";");
                 strcpy(dn,ptr);
                 ptr = strtok(NULL,";");
                 strcpy(pn,ptr);
+                
                 mySpec.doctorName = dn;
                 mySpec.patientName = pn;
                 applySpecSettings(mySpec);
@@ -287,21 +279,16 @@ int main(int argc, char **argv)
                 //start and stop commands -- 
             case EXP_START:
                 applySpecSettings(mySpec);
-                initExperiment(mySpec);
+                initExperiment(mySpec, startStatusThread);
                 runExperiment(START_EXPERIMENT);
 
-                //update the client with our new status:
-                notCreated = piThreadCreate(statusThread);
-                if (notCreated) {
-                    printf("pi thread failed somehow!\n");
-                    exit(5);
-                }
                 //start a thread to watch for the end now:
-                notCreated = piThreadCreate(experimentFinishedListener);
-                if (notCreated) {
+                /*
+                if (piThreadCreate(experimentStatusListener)) {
                     printf("pi thread failed somehow!\n");
                     exit(5);
                 }
+                */
 
                 break;
 
@@ -310,9 +297,8 @@ int main(int argc, char **argv)
                 break;
 
                 //if the user wants status, create a worker thread to beam it over
-            case EXP_STATUS:
-                notCreated = piThreadCreate(statusThread);
-                if (notCreated) {
+            case EXP_STATUS:        
+                if (piThreadCreate(statusThread)) {
                     printf("pi thread failed somehow!\n");
                     exit(5);
                 }
@@ -360,7 +346,7 @@ int main(int argc, char **argv)
  * Accepts an open server socket, listens on the socket for connections,
  * and returns the client it finds. 
  */
-int getClient(int serverSock)
+static int getClient(int serverSock)
 {
 
     char inBuf[1023];
@@ -414,11 +400,42 @@ int sendStringToClient(int client, char *string)
         return 0;
     } else {
         //we want to return 1 if still running
-        printf("Response: %s\n", buf);
+        printf("Sent to client: %s\n", buf);
         //fprintf(log, "Response: %s\n", buf);
         return 1;
     }
 }
 
+int sendDoubleArrayToClient(int client,double *arr, char command) {
+			char specString[256] = "";
+			char tmpBuf[128] = "";
+			int index, offset = 0, k = 0;
+			int retVal;
+        
+        //now iterate through and apend 8 readings per string
+        //send index and then 8 values for offsets 0-7
+        for (index = 0; index < NUM_WAVELENGTHS; index += 8) {
+
+            sprintf(specString, "%c%i;", command, index);
+            for (offset = 0; offset < 7; offset++) {
+                sprintf(tmpBuf, "%.2f;", arr[index + offset]);
+                strcat(specString, tmpBuf);
+            }
+            //and leave the ';' out of last entry:
+            sprintf(tmpBuf, "%.2f", arr[index + 7]);
+            strcat(specString, tmpBuf);
+
+			//this guy will return 1 when it succeeds
+            if(sendStringToClient(client, specString) == 0) {
+				return 0;
+			}
+            
+            //delay(15);
+            k++;
+			}
+			printf("finished data stream! %i Strings sent\n", k);
+			return 1;
+			
+		}
 
 

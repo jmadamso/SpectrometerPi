@@ -8,22 +8,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "./spectrometerDriver.h"
-#include "./experimentFSM.h"
+#include "../include/spectrometerDriver.h"
+#include "../include/experimentFSM.h"
+
+
+//#define VERBOSE
 
 static char *getStateString(int s);
-
-
-
 
 static specSettings thisExperiment;
 static char experimentStatusMessage[512] = "Uninitialized";
 static int inited = 0;
+static int update = 0;
 static int readingsTaken = 0;
+
+static int (*updateServer)();
+
+static FILE *expFile;
+static FILE *expIndex;
 
 static int verbose = 1;
 
-static double averagedArray[1024], spectrumArray[1024];
+static double averagedArray[NUM_WAVELENGTHS], 
+			  spectrumArray[NUM_WAVELENGTHS],
+			  finalArray[NUM_WAVELENGTHS];
 
 static enum experiment_states {
     IDLE,
@@ -32,36 +40,41 @@ static enum experiment_states {
     WRITING_RESULTS,
 } experimentState = IDLE;
 
-int initExperiment(specSettings spec)
+
+int initExperiment(specSettings spec, int (*updateFunction)())
 {
     thisExperiment = spec;
     experimentState = IDLE;
     readingsTaken = 0;
+    updateServer = updateFunction;
+    for(int i = 0; i < 1024; i++) {
+		averagedArray[i] = 0;
+		spectrumArray[i] = 0;
+	}
+    
     inited = 1;
 }
 
 int runExperiment(char command)
 {
+	
     if (!inited) {
         printf("\n\n Aw damn. Tried to run experiment without init. \n\n");
         while (1);
     }
 
-    if (verbose) {
+#ifdef VERBOSE
         printf("running fsm in state %i with command %i \n", experimentState, command);
-    }
-
-    sprintf(experimentStatusMessage, "The experiment process is currently %s\n", getStateString(experimentState));
-
+#endif
 
     //this timer thread will post its event to the experiment FSM after the set amount of time
 
     PI_THREAD(timerThread)
     {
-        if (verbose) {
-            printf("starting a timer for %i seconds\n", thisExperiment.timeBetweenScans);
-        }
-        //delay accepts argument in milliseconds
+         printf("starting a timer for %i seconds\n", thisExperiment.timeBetweenScans);
+        
+        //delay accepts argument in milliseconds.
+        //block for set time, then update the experiment
         delay(thisExperiment.timeBetweenScans * 1000);
         runExperiment(TIMEOUT);
     }
@@ -74,11 +87,25 @@ int runExperiment(char command)
         switch (command) {
         case START_EXPERIMENT:
 
-            //TO DO:	
-            //CHECK HERE IF INITED!!!!!
+            if(!inited) {
+				printf("Whoops! Somebody didn't init before starting. No defaults, either. :(\n");
+				exit(-9);
+			}
 
-            //motor ON
-
+            //motor on
+            //any other hardware stuff
+            
+            //prepare a file for this experiment
+            char reportPath[1023];
+            //eventually include a date string here...
+            sprintf(reportPath,"./experiment_results/exp_%s.txt",thisExperiment.doctorName);
+                        
+			expFile = fopen(reportPath,"w");
+			if (!expFile) {
+				printf("could not create file! ");
+				while(1);
+			}
+			
             experimentState = GETTING_SPECTRA;
             //now we run ourself, since this is an internal transition.
             //shouldnt recurse too much during normal operation :)
@@ -98,9 +125,7 @@ int runExperiment(char command)
 
         switch (command) {
         case SELF:
-            if (verbose) {
-                printf("about to get a spectrum\n");
-            }
+             printf("Collecting Spectrum\n\n");
             led_ON();
 
             //grab and total some readings...
@@ -114,17 +139,29 @@ int runExperiment(char command)
             //...then perform the averaging
             for (i = 0; i < 1024; i++) {
                 averagedArray[i] /= thisExperiment.avgPerScan;
+                finalArray[i] = averagedArray[i];
+                averagedArray[i] = 0;
             }
 
             //WE NOW HAVE ONE SPECTRUM READY TO PROCESS.
-            //PLACE IT IN THE LIST.
+            //WRITE TO FILE AND PLACE IT IN THE LIST.
+            
 
             readingsTaken++;
+            fprintf(expFile,"Measurement %i:\n",readingsTaken);
+			for (i = 0; i < NUM_WAVELENGTHS - 1; i++) {
+				fprintf(expFile,"%.2f,",finalArray[i]);
+			}
+			fprintf(expFile,"%.2f\n",finalArray[NUM_WAVELENGTHS - 1]);
+			
+		
+			
             led_OFF();
 
-            if (verbose) {
-                printf("finished getting reading number %i\n", readingsTaken);
-            }
+#ifdef VERBOSE
+			printf("finished getting reading number %i\n", readingsTaken);
+#endif                
+            
             //now, check to see if we have taken enough scans. if not, set a timer and keep waiting. 
             if (readingsTaken < thisExperiment.numScans) {
                 //start a timer thread. these threads return 0 if successfully started:
@@ -133,11 +170,16 @@ int runExperiment(char command)
                     printf("pi thread failed somehow!\n");
                     exit(5);
                 }
+                
 
                 //give the thread a moment to set up, because we break immediately after:
                 delay(100);
 
                 experimentState = AWAITING_TIMEOUT;
+                
+                updateServer();
+                //update = 1;
+                
                 break;
             } else {
                 experimentState = WRITING_RESULTS;
@@ -162,9 +204,11 @@ int runExperiment(char command)
         break; //break GETTING_SPECTRA
 
     case AWAITING_TIMEOUT:
-        if (verbose) {
-            printf("awaiting timeout...\n");
-        }
+    
+    #ifdef VERBOSE
+                printf("awaiting timeout...\n");
+    #endif
+        
         switch (command) {
 
             //when we finally get here, the timer has expired and we
@@ -190,19 +234,29 @@ int runExperiment(char command)
 
 
     case WRITING_RESULTS:
-        if (verbose) {
-            printf("\nfinished getting spectra.\nWRITING RESULTS!\n\n");
-        }
-
+        printf("\nfinished getting spectra.\nWRITING RESULTS!\n\n");
+		fprintf(expFile,"\nResult:\n");
+		
+		
         //TO DO:
         //whenever we make it to this state, we expect to have a complete
         //set of spectra taken, and may begin processing the results. 
         //spectral integration? peak detection? Whatever. Do it here. 
         //save to disk here too. 
-
-        //also, is there some way here to automatically update the app?
-
+		
+		expIndex = fopen("./experiment_results/INDEX","a");
+		
+		fprintf(expFile,"EXPERIMENT END\n");
+		fprintf(expIndex, "Exp. = %s\n",thisExperiment.doctorName);
+		
+		
+		fclose(expFile);
+		fclose(expIndex);
         experimentState = IDLE;
+        
+        //update = 1;
+        updateServer();
+        
         inited = 0;
         break;
 
@@ -211,14 +265,7 @@ int runExperiment(char command)
         break;
 
 
-
     }
-
-
-    //if (verbose) {
-    //printf("FSM awaits next run command.\n");
-
-    //}
 }
 
 int experimentRunning()
@@ -233,6 +280,14 @@ int experimentRunning()
     }
 }
 
+int readyToUpdate() {
+	return update;
+	}
+	
+	void clearUpdate() {
+		update = 0;
+		}
+
 specSettings getExperimentSettings()
 {
     return thisExperiment;
@@ -240,7 +295,7 @@ specSettings getExperimentSettings()
 
 char *getExpStatusMessage()
 {
-    sprintf(experimentStatusMessage, "The experiment process is currently %s\n", getStateString(experimentState));
+    sprintf(experimentStatusMessage, "Experiment Status: %s", getStateString(experimentState));
     return experimentStatusMessage;
 }
 
@@ -254,6 +309,8 @@ int experimentIsInited()
 
 static char *getStateString(int s)
 {
+	static char str[1023];
+
     switch (s) {
     case IDLE:
         return "Idle";
@@ -264,7 +321,8 @@ static char *getStateString(int s)
         break;
 
     case AWAITING_TIMEOUT:
-        return "Awaiting Next Measurement";
+		sprintf(str,"Finished measurement %i/%i with %i second intervals",readingsTaken,thisExperiment.numScans,thisExperiment.timeBetweenScans);
+        return str;
         break;
 
     case WRITING_RESULTS:
@@ -276,3 +334,7 @@ static char *getStateString(int s)
         break;
     }
 }
+
+//static int writeDoubleArrToCSV(FILE *f, double *arr,int numVals) {
+
+//}

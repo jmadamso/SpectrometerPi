@@ -4,3 +4,4 @@ log_*.txt
 push*
 pull*
 *_old.*
+experiment_results

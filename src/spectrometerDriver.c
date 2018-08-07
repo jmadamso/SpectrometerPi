@@ -5,7 +5,7 @@
  * 
  * /
 /***********************************************************************/
-#include "./spectrometerDriver.h"
+#include "../include/spectrometerDriver.h"
 #include "api/SeaBreezeWrapper.h"
 
 
@@ -104,7 +104,7 @@ int getSpectrometerReading(double *inBuff)
 
     //default to y=x
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
-        spectrumArray[i] = (i + 2048);
+        spectrumArray[i] = (i);
         //inBuff[i] = i;
     }
 

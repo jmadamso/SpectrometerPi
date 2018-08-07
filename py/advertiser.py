@@ -72,7 +72,6 @@ def main():
 
     except IOError:
         pass
-    client_sock.send("e" + str(777));
     
 	#os._exit(0);
 
