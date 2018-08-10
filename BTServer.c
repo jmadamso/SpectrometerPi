@@ -25,7 +25,12 @@
 
 static int getClient();
 static int sendStringToClient(int client, char *string); 
-static int sendDoubleArrayToClient(int client,double *arr, char command) ;
+static int sendDoubleArrayToClient(int client,double *arr, char command);
+static char *specStructToCommandString(specSettings s);
+static specSettings CommandStringToSpecStruct(char *cmdStr);
+
+
+
 
 static FILE *log;
 static int pressureThreadRunning = 0;
@@ -36,8 +41,7 @@ int main(int argc, char **argv)
     char inBuf[1024];
     char outBuf[1024];
     char pressureReadingString[128];
-    char dn[1024];
-    char pn[1024];
+    char dn[1024], pn[1024], ts[1024];
 
 
 
@@ -54,7 +58,7 @@ int main(int argc, char **argv)
 
 
     //NumScans;Time between;Integration time; boxcar width; averages; result
-    specSettings mySpec = {5, 60, 1000, 0, 3, "Dr. Smith", "John Deere", 0, 0};
+    specSettings mySpec = {5, 60, 1000, 0, 3, "PI_DEFAULT_DR", "PI_DEFAULT_PAT","12_31_91_2359"};
 
     /*spectraThread
      * When started, beams several strings containing spectrum data
@@ -70,10 +74,10 @@ int main(int argc, char **argv)
         getSpectrometerReading(specBuffer);
 
 		//now zap it over:
-		sendDoubleArrayToClient(client, specBuffer,REQUEST_SPECTRA);
+		sendDoubleArrayToClient(client, specBuffer,SNAPSHOT);
 
         //if we are streaming readings, fire up another one of these threads before return
-        spectraThreadRunning = 0;
+        //spectraThreadRunning = 0;
         if (spectraThreadRunning) {
             int notCreated = piThreadCreate(spectraThread);
             if (piThreadCreate(spectraThread)) {
@@ -106,54 +110,23 @@ int main(int argc, char **argv)
     {
 		//start with some default settings that we don't really care
 		//about if the experiment is idle.
-		specSettings s = {0,0,0,0,0,"","",0,0};
+		specSettings s = {0,0,0,0,0,"","",""};
         if (experimentIsInited()) {
 			s = getExperimentSettings();	
 		}
 		
-		sprintf(outBuf, "%c%i;%s;%s;%i;%i;%i;%i;%i;%s",
-                EXP_STATUS,
-                experimentRunning(),
-                s.doctorName,
-                s.patientName,
-                s.numScans,
-                s.timeBetweenScans,
-                s.integrationTime,
-                s.boxcarWidth,
-                s.avgPerScan,
-                getExpStatusMessage());
-
-        //sendStringTo Client returns 1 if successful write
+		strcpy(outBuf,specStructToCommandString(s));
         deviceConnected = sendStringToClient(client, outBuf);
         //printf("sending status string: %s\n",outBuf);
-
     }
     
+    //and a simple wrapper to start it.
+    //using this so that we have a function pointer
+    //to send to the FSM process
     int startStatusThread() {
-		
-	if(piThreadCreate(statusThread)) {
-		return 1;
-		} 
-	return 0;
+		return piThreadCreate(statusThread) ? 1 : 0;
 	}
 
-
-	/*
-    PI_THREAD(experimentStatusListener)
-    {
-        //printf("entered listener\n");
-		//zap over a status whenever the experiment sets its flag:
-		while(experimentRunning()) {
-			while(!readyToUpdate());
-			if(piThreadCreate(statusThread)) {
-				printf("pi thread failed somehow :(\n");
-				while("dangit");
-			}
-			//clear the update flag now that we have update:
-			clearUpdate();
-		} 
-    }
-*/
 
 
 
@@ -190,22 +163,22 @@ int main(int argc, char **argv)
             switch (inBuf[0]) {
 
             case MOTOR_ON:
-                sendStringToClient(client, "Turning on motor...\n");
+                //sendStringToClient(client, "Turning on motor...\n");
                 motor_ON();
                 break;
 
             case MOTOR_OFF:
-                sendStringToClient(client, "Turning off motor...\n");
+                //sendStringToClient(client, "Turning off motor...\n");
                 motor_OFF();
                 break;
 
             case LED_ON:
-                sendStringToClient(client, "Turning on LED...\n");
+                //sendStringToClient(client, "Turning on LED...\n");
                 led_ON();
                 break;
 
             case LED_OFF:
-                sendStringToClient(client, "Turning off LED...\n");
+                //sendStringToClient(client, "Turning off LED...\n");
                 led_OFF();
                 break;
 
@@ -226,7 +199,7 @@ int main(int argc, char **argv)
                 }
                 break;
 
-            case REQUEST_SPECTRA:
+            case SNAPSHOT:
 
                 //if this command comes, start the thread to transmit spectrum
                 //sendStringToClient(client, "Received spectrum request...\n");
@@ -238,6 +211,19 @@ int main(int argc, char **argv)
                 }
                 break;
 
+			case START_STREAM:
+				spectraThreadRunning = 1;
+				notCreated = piThreadCreate(spectraThread);
+                if (notCreated) {
+                    printf("pi thread failed somehow!\n");
+                    exit(5);
+                }
+				break;
+				
+			case STOP_STREAM:
+				spectraThreadRunning = 0;
+				break;
+	
             case SETTINGS:
 
                 //if this command comes, we expect to receive settings. read them
@@ -250,45 +236,41 @@ int main(int argc, char **argv)
                         &mySpec.integrationTime, &mySpec.boxcarWidth, &mySpec.avgPerScan,
                          outBuf);
                 
-                printf("trying to tokenize %s\n",outBuf);
+                //printf("trying to tokenize %s\n",outBuf);
                 
                 //since sscanf is finnicky with strings, we just scan
                 //in one above, then tokenize that big string, knowing what
                 //order they will be in. Clunky but functional. 
                 char *ptr = strtok(outBuf,";");
-                strcpy(dn,ptr);
+                if(ptr) {
+					strcpy(dn,ptr);
+				}
                 ptr = strtok(NULL,";");
-                strcpy(pn,ptr);
-                
-                mySpec.doctorName = dn;
+                if(ptr) {
+					strcpy(pn,ptr);
+				}
+                ptr = strtok(NULL,";");
+                if(ptr) {
+					strcpy(ts,ptr);
+				}
+				
+				mySpec.doctorName = dn;
                 mySpec.patientName = pn;
-                applySpecSettings(mySpec);
+                mySpec.timestamp = ts;
+				
+				applySpecSettings(mySpec);
                 printSpecSettings(mySpec);
-                break;
+                
+				//now that we have gotten the strings, check to see
+				//if we also want to start the experiment:
+				ptr = strtok(NULL,";");
+				if(ptr) {
+					//if we get here, the command string included
+					//a request to start the experiment. 
+					initExperiment(mySpec, startStatusThread);
+					runExperiment(START_EXPERIMENT);
+				} 
 
-            case CALIBRATE:
-                //start or stop an infinite spectrum stream thread here
-                spectraThreadRunning = spectraThreadRunning ? 0 : 1;
-                notCreated = piThreadCreate(spectraThread);
-                if (notCreated) {
-                    printf("pi thread failed somehow!\n");
-                    exit(5);
-                }
-                break;
-
-                //start and stop commands -- 
-            case EXP_START:
-                applySpecSettings(mySpec);
-                initExperiment(mySpec, startStatusThread);
-                runExperiment(START_EXPERIMENT);
-
-                //start a thread to watch for the end now:
-                /*
-                if (piThreadCreate(experimentStatusListener)) {
-                    printf("pi thread failed somehow!\n");
-                    exit(5);
-                }
-                */
 
                 break;
 
@@ -328,15 +310,8 @@ int main(int argc, char **argv)
 
     }//end main listening loop
 
-
-
-
-    // close connection
-    //fprintf(log, "SESSION END\n\n");
+	//we will almost certainly never get here: 
     printf("SESSION END\n");
-    //allow thread to close. Not sure if we need to do this but
-    //it doesn't hurt.
-
 
     return 0;
 }
@@ -395,7 +370,7 @@ int sendStringToClient(int client, char *string)
 
     if (err < 0) {
         //we want to return 0 if the client isn't there anymore.
-        //this is very unlikely to happen, as the read will notice first
+        //eg, status thread tries to run while the researcher is eating lunch
         printf("Client Disconnected. Noticed upon write.\n");
         return 0;
     } else {
@@ -438,4 +413,25 @@ int sendDoubleArrayToClient(int client,double *arr, char command) {
 			
 		}
 
+
+static char *specStructToCommandString(specSettings s) {
+			static char buffer[256];
+			sprintf(buffer, "%c%i;%s;%s;%i;%i;%i;%i;%i;%s\n",
+                EXP_STATUS,
+                experimentRunning(),
+                s.doctorName,
+                s.patientName,
+                s.numScans,
+                s.timeBetweenScans,
+                s.integrationTime,
+                s.boxcarWidth,
+                s.avgPerScan,
+                getExpStatusMessage());
+                
+                return buffer;
+		}
+		
+static specSettings CommandStringToSpecStruct(char *cmdStr) {
+			
+		}
 

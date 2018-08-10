@@ -123,6 +123,19 @@ int getSpectrometerReading(double *inBuff)
     return 0;
 }
 
+int getSpectrometerWavelength(int index) {
+	double wavelengths[NUM_WAVELENGTHS];
+	if(specConnected) {
+		seabreeze_get_wavelengths(spectrometerIndex, &errorCode, wavelengths, NUM_WAVELENGTHS);
+		return wavelengths[index];
+	} else {
+		return 666;
+	}
+
+}
+
+
+
 int getPressureReading()
 {
     if (!inited) {
@@ -189,11 +202,15 @@ void led_OFF()
 int endSession()
 {
     printf("Closing...");
-    seabreeze_close_spectrometer(spectrometerIndex, &errorCode);
-    if (errorCode) {
-        printf("Unable to close spectrometer.\n");
-        return 1;
-    }
+    if(specConnected) {
+		seabreeze_close_spectrometer(spectrometerIndex, &errorCode);
+		if (errorCode) {
+			printf("Unable to close spectrometer.\n");
+			return 1;
+		}
+	}
+
+    inited = 0;
     return 0;
 }
 
@@ -221,8 +238,6 @@ static int Hardware_Init()
             printf("Unable to set integration time.\n");
             return 1;
         }
-
-
     }
 
     //try to do other hardware
@@ -321,6 +336,7 @@ void printSpecSettings(specSettings in)
     printf(" ===================\n");
     printf("Doctor           = %s\n", in.doctorName);
     printf("Patient          = %s\n", in.patientName);
+    printf("Timestamp        = %s\n", in.timestamp);
     printf("numScans         = %i\n", in.numScans);
     printf("timeBetweenScans = %i\n", in.timeBetweenScans);
     printf("integrationTime  = %i\n", in.integrationTime);

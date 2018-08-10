@@ -22,8 +22,6 @@ enum FSM_commands {
 //we pass in whatever update method the server wants us to use: 
 int initExperiment(specSettings spec, int (*updateFunction)());
 int experimentIsInited();
-int readyToUpdate();
-void clearUpdate();
 
 //run the experiment with an incomming command. 
 int runExperiment(char command);

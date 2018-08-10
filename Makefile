@@ -1,7 +1,7 @@
 all: BTServer specDriver.o exp.o
 BTServer: BTServer.c specDriver.o exp.o 
 	gcc -W BTServer.c specDriver.o exp.o -o BTServer -lbluetooth -lseabreeze -lusb -lwiringPi
-	make clean
+	#make clean
 
 specDriver.o: ./src/spectrometerDriver.c
 	gcc -c ./src/spectrometerDriver.c -o specDriver.o 

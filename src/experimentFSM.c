@@ -7,6 +7,7 @@
 #include <wiringPi.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "../include/spectrometerDriver.h"
 #include "../include/experimentFSM.h"
@@ -15,6 +16,10 @@
 //#define VERBOSE
 
 static char *getStateString(int s);
+static char *specStructToIndexString(specSettings s);
+static double findPeakValueWavelength(double *array);
+
+
 
 static specSettings thisExperiment;
 static char experimentStatusMessage[512] = "Uninitialized";
@@ -27,11 +32,28 @@ static int (*updateServer)();
 static FILE *expFile;
 static FILE *expIndex;
 
-static int verbose = 1;
 
 static double averagedArray[NUM_WAVELENGTHS], 
 			  spectrumArray[NUM_WAVELENGTHS],
 			  finalArray[NUM_WAVELENGTHS];
+
+
+//simple linked list of arrays, since we accept different numbers of
+//scans
+typedef struct listNode {
+	double array[1024];
+	struct listNode *nextNode;
+	} listNode;
+	
+static listNode *spectrumList;
+	
+static void writeExperimentFile(FILE *f, listNode *head, double *results);
+
+
+	
+static listNode *list_add(listNode *head,double *doubleArray);
+static void list_print(listNode *head);
+static void list_destroy(listNode *head);
 
 static enum experiment_states {
     IDLE,
@@ -51,12 +73,14 @@ int initExperiment(specSettings spec, int (*updateFunction)())
 		averagedArray[i] = 0;
 		spectrumArray[i] = 0;
 	}
-    
+    spectrumList = NULL;
     inited = 1;
 }
 
 int runExperiment(char command)
 {
+	
+	
 	
     if (!inited) {
         printf("\n\n Aw damn. Tried to run experiment without init. \n\n");
@@ -71,8 +95,7 @@ int runExperiment(char command)
 
     PI_THREAD(timerThread)
     {
-         printf("starting a timer for %i seconds\n", thisExperiment.timeBetweenScans);
-        
+         printf("starting a timer for %i seconds\n", thisExperiment.timeBetweenScans);   
         //delay accepts argument in milliseconds.
         //block for set time, then update the experiment
         delay(thisExperiment.timeBetweenScans * 1000);
@@ -96,9 +119,8 @@ int runExperiment(char command)
             //any other hardware stuff
             
             //prepare a file for this experiment
-            char reportPath[1023];
-            //eventually include a date string here...
-            sprintf(reportPath,"./experiment_results/exp_%s.txt",thisExperiment.doctorName);
+            char reportPath[256];
+            sprintf(reportPath,"./experiment_results/exp_%s.txt",thisExperiment.timestamp);
                         
 			expFile = fopen(reportPath,"w");
 			if (!expFile) {
@@ -107,6 +129,7 @@ int runExperiment(char command)
 			}
 			
             experimentState = GETTING_SPECTRA;
+            updateServer();
             //now we run ourself, since this is an internal transition.
             //shouldnt recurse too much during normal operation :)
             runExperiment(SELF);
@@ -125,7 +148,7 @@ int runExperiment(char command)
 
         switch (command) {
         case SELF:
-             printf("Collecting Spectrum\n\n");
+            printf("Collecting Spectrum\n\n");
             led_ON();
 
             //grab and total some readings...
@@ -140,22 +163,15 @@ int runExperiment(char command)
             for (i = 0; i < 1024; i++) {
                 averagedArray[i] /= thisExperiment.avgPerScan;
                 finalArray[i] = averagedArray[i];
-                averagedArray[i] = 0;
+                averagedArray[i] = 0;       
             }
 
-            //WE NOW HAVE ONE SPECTRUM READY TO PROCESS.
-            //WRITE TO FILE AND PLACE IT IN THE LIST.
+            //we have now taken one more reading:
+            readingsTaken++;
+
+            spectrumList = list_add(spectrumList,finalArray);
             
 
-            readingsTaken++;
-            fprintf(expFile,"Measurement %i:\n",readingsTaken);
-			for (i = 0; i < NUM_WAVELENGTHS - 1; i++) {
-				fprintf(expFile,"%.2f,",finalArray[i]);
-			}
-			fprintf(expFile,"%.2f\n",finalArray[NUM_WAVELENGTHS - 1]);
-			
-		
-			
             led_OFF();
 
 #ifdef VERBOSE
@@ -177,9 +193,7 @@ int runExperiment(char command)
 
                 experimentState = AWAITING_TIMEOUT;
                 
-                updateServer();
-                //update = 1;
-                
+                updateServer();                
                 break;
             } else {
                 experimentState = WRITING_RESULTS;
@@ -193,6 +207,7 @@ int runExperiment(char command)
         case STOP_EXPERIMENT:
             inited = 0;
             experimentState = IDLE;
+            list_destroy(spectrumList);
             break;
 
         default:
@@ -217,9 +232,9 @@ int runExperiment(char command)
             //don't need at least one more reading, so we always transition
             //upon this timer. 
         case TIMEOUT:
-            if (verbose) {
+#ifdef VERBOSE
                 printf("got timeout!\n");
-            }
+#endif
             experimentState = GETTING_SPECTRA;
             runExperiment(SELF);
             break;
@@ -227,6 +242,7 @@ int runExperiment(char command)
         case STOP_EXPERIMENT:
             inited = 0;
             experimentState = IDLE;
+            list_destroy(spectrumList);
             break;
 
         }
@@ -235,58 +251,51 @@ int runExperiment(char command)
 
     case WRITING_RESULTS:
         printf("\nfinished getting spectra.\nWRITING RESULTS!\n\n");
-		fprintf(expFile,"\nResult:\n");
+		
+		//carve out a result array:
+		double *resultArray = malloc(thisExperiment.numScans*sizeof(double));
+		if(!resultArray) {
+			printf("we didnt get the memo\n");
+		}
+		//i'm so happy this works:
+		listNode *cur;
+		int i = 0;
+		for(cur = spectrumList; cur != NULL; cur = cur->nextNode) {
+			resultArray[i++] = findPeakValueWavelength(cur->array);
+		}
 		
 		
-        //TO DO:
-        //whenever we make it to this state, we expect to have a complete
-        //set of spectra taken, and may begin processing the results. 
-        //spectral integration? peak detection? Whatever. Do it here. 
-        //save to disk here too. 
-		
+		//open the index file and write a serialized spec struct to it:
 		expIndex = fopen("./experiment_results/INDEX","a");
-		
-		fprintf(expFile,"EXPERIMENT END\n");
-		fprintf(expIndex, "Exp. = %s\n",thisExperiment.doctorName);
-		
-		
+		char *indexString = specStructToIndexString(thisExperiment);
+		fprintf(expIndex,indexString);
+
+		//printf everything to our file:
+		writeExperimentFile(expFile,spectrumList,resultArray);
+
+		//tidy up and return to idling:
 		fclose(expFile);
 		fclose(expIndex);
-        experimentState = IDLE;
-        
-        //update = 1;
-        updateServer();
-        
+		free(resultArray);
+        list_destroy(spectrumList);
         inited = 0;
+        experimentState = IDLE;
+        updateServer();
+		//list_print(spectrumList);
+
         break;
 
     default:
 
         break;
-
-
     }
 }
 
 int experimentRunning()
 {
-
-    //return experimentState == IDLE ? 0 : 1;
-
-    if (experimentState == IDLE) {
-        return 0;
-    } else {
-        return 1;
-    }
+    return experimentState == IDLE ? 0 : 1;
 }
 
-int readyToUpdate() {
-	return update;
-	}
-	
-	void clearUpdate() {
-		update = 0;
-		}
 
 specSettings getExperimentSettings()
 {
@@ -306,35 +315,191 @@ int experimentIsInited()
 
 
 //private function to get strings from states
-
 static char *getStateString(int s)
 {
-	static char str[1023];
-
-    switch (s) {
-    case IDLE:
-        return "Idle";
-        break;
-
-    case GETTING_SPECTRA:
-        return "Taking Measurement";
-        break;
-
-    case AWAITING_TIMEOUT:
+	static char str[512];
+	
+	if(s == IDLE) {
+		return "Idle";
+	} else {
 		sprintf(str,"Finished measurement %i/%i with %i second intervals",readingsTaken,thisExperiment.numScans,thisExperiment.timeBetweenScans);
         return str;
-        break;
-
-    case WRITING_RESULTS:
-        return "Writing Results to File";
-        break;
-
-    default:
-        return "In an unknown state?!";
-        break;
-    }
+	}
 }
 
-//static int writeDoubleArrToCSV(FILE *f, double *arr,int numVals) {
 
-//}
+static specSettings indexStringToSpecStruct(char *indexString) 
+{
+	specSettings s;
+	return s;
+	
+}
+
+static char *specStructToStatusString(specSettings s) {
+	
+}
+
+static char *specStructToIndexString(specSettings s) {
+	static char str[512];
+	sprintf(str, "exp_%s;%s;%s;%i;%i;%i;%i;%i\n",
+		thisExperiment.timestamp,
+		thisExperiment.doctorName,
+		thisExperiment.patientName,
+		thisExperiment.numScans,
+		thisExperiment.timeBetweenScans,
+		thisExperiment.integrationTime,
+		thisExperiment.boxcarWidth,
+		thisExperiment.avgPerScan);
+		
+		return str;
+	}
+
+
+
+
+static listNode *list_add(listNode *head,double *doubleArray) {
+		int i;
+		int count = 1;
+	
+		if(head == NULL) {
+			printf("STARTED LIST with item 0\n");
+			head = (listNode*)malloc(sizeof(listNode));
+			
+			if(head == NULL) {
+				printf("empty head.\n");
+				while(1);
+			}
+			
+			for(i = 0; i < NUM_WAVELENGTHS; i++) {
+				head->array[i] = doubleArray[i];
+			}
+			head->nextNode = NULL;
+
+			return head;
+		} else {
+			listNode *cur = head;
+			//iterate to the end of the list:
+			while(cur->nextNode != NULL) {
+				cur = cur->nextNode;
+				count++;
+			}
+			
+			listNode *tmp = malloc(sizeof(listNode));
+			tmp->nextNode = NULL;
+			for(i = 0; i < NUM_WAVELENGTHS; i++) {
+				tmp->array[i] = doubleArray[i];
+			}
+			
+			printf("added item %i to list\n",count);
+			cur->nextNode = tmp;
+			
+			return head;
+		}
+	
+		
+}
+
+
+static void list_destroy(listNode *head) {
+		if(head == NULL) {
+			return;
+		}
+	
+		listNode *cur = head;
+		listNode *tmp;
+		
+		while(cur->nextNode != NULL) {
+			listNode *tmp = cur->nextNode;
+			free(cur);
+			cur = tmp;
+		}
+		
+}
+
+
+static void list_print(listNode *head) {
+	int count = 0;
+	if (head == NULL) {
+		return;
+	}
+	listNode *cur = head;
+	while(cur != NULL) {
+		printf("first 3 of array %i = %f %f %f\n",count++,cur->array[0],cur->array[1],cur->array[2]);
+		cur = cur->nextNode;
+	}
+}
+//this is where we do the peak detection work
+static double findPeakValueWavelength(double *array) {
+	int i;
+	int largestSeen = 0;
+	int peakIndex = 0;
+	//printf("Attempting to find peak wavelength\n");
+	
+	if(array == NULL) {
+		printf("got bad array!\n");
+		return 580;
+	}
+	
+	for(i = 0; i < NUM_WAVELENGTHS; i++) {
+		//largestSeen = array[i] <= largestSeen ? largestSeen : array[i];
+		//peakIndex = array[i] == largestSeen ? i : peakIndex;
+		//translation:
+		if (array[i] > largestSeen) {
+			largestSeen = array[i];
+			peakIndex = i;
+		}
+						 
+	}
+	
+	return getSpectrometerWavelength(peakIndex);
+}
+
+
+
+static void writeExperimentFile(FILE *f, listNode *head, double *results) {
+	char line[512] = "";
+	char tmp[512];
+
+	//line = specStruct2descriptor OR SOMETHING
+	fprintf(f,"DESCRIPTOR STRING\n");
+
+	int i,j = 0;
+	for(i = 0; i < thisExperiment.numScans; i++) {
+		sprintf(tmp,"Reading %i\t",i + 1);
+		strcat(line,tmp);
+	}
+	strcat(line,"Results\n");
+	fprintf(f,line);
+	strcpy(line,"");
+
+	listNode *cur = head;
+
+	
+	for(i = 0; i < NUM_WAVELENGTHS; i++) {
+		cur = head;
+		//printf("traversed time and space %i/%i times\n",++j,NUM_WAVELENGTHS);
+		while(cur != NULL) {
+			sprintf(tmp,"%-11.2f\t",cur->array[i]);
+			strcat(line,tmp);
+			cur = cur->nextNode;
+		}
+		if (i < thisExperiment.numScans) {
+			sprintf(tmp,"%-11.2f\n",results[i]);
+			strcat(line,tmp);
+		} else {
+			strcat(line,"\n");
+		}
+		fprintf(f,line);
+		strcpy(line,"");
+	}
+}
+
+
+
+
+
+
+
+
+
+
