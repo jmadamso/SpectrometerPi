@@ -45,7 +45,9 @@ enum server_commands {
                                 //of current experiment
     EXP_LIST,           //return a list of completed experiments
     EXP_LOOKUP,         //begin stream process of specific experiment
-    EXP_DELETE,     
+    EXP_DELETE,    		//delete a given experiment
+    
+    HARDWARE_OFF, 
 };
 
 
@@ -72,7 +74,7 @@ int setIntegrationTime(int newTime);
  * Returns -1 on init or reading failure
  */
 int getSpectrometerReading(double *inBuff);
-int getSpectrometerWavelength(int index);
+int getSpectrometerWavelengthArray(double *wavelengths);
 
 
 /*getPressureReading
@@ -106,6 +108,9 @@ void led_OFF();
  */
 int boxcarAverage(int width, double *inputArray, double *outputArray, int numElements);
 
+/*
+ * 
+ */
 
 /* endSession();
  * 

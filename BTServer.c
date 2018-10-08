@@ -14,9 +14,11 @@
 #include <bluetooth/rfcomm.h>
 #include <time.h>
 #include <wiringPi.h>
+#include <wiringPiI2C.h>
 
 #include "./include/spectrometerDriver.h"
 #include "./include/experimentFSM.h"
+
 
 #define PHONE_MAC 88:AD:D2:F1:A2:83
 #define PI_MAC B8:27:EB:AF:AC:37
@@ -100,6 +102,9 @@ int main(int argc, char **argv)
             delay(PRESSURE_READING_RATE);
         }
     }
+    
+
+
 
 
 
@@ -108,6 +113,8 @@ int main(int argc, char **argv)
      */
     PI_THREAD(statusThread)
     {
+		char buffer[1024];
+
 		//start with some default settings that we don't really care
 		//about if the experiment is idle.
 		specSettings s = {0,0,0,0,0,"","",""};
@@ -115,8 +122,8 @@ int main(int argc, char **argv)
 			s = getExperimentSettings();	
 		}
 		
-		strcpy(outBuf,specStructToCommandString(s));
-        deviceConnected = sendStringToClient(client, outBuf);
+		strcpy(buffer,specStructToCommandString(s));
+        deviceConnected = sendStringToClient(client, buffer);
         //printf("sending status string: %s\n",outBuf);
     }
     
@@ -182,6 +189,14 @@ int main(int argc, char **argv)
                 led_OFF();
                 break;
 
+			//wen exiting the hardware screen, reset everything
+			case HARDWARE_OFF:
+				pressureThreadRunning = 0;
+				spectraThreadRunning = 0;
+				led_OFF();
+				motor_OFF();
+			
+				break;
 
             case REQUEST_PRESSURE:
 
@@ -232,15 +247,19 @@ int main(int argc, char **argv)
                 //Read from &inbuf[1] because 1st char contains the command itself
 
                 //NumScans;Time between;Integration time; boxcar width; averages
+                
+                //commandStringToSpecStruct(string,mySpec);
                 sscanf(&inBuf[1], "%i;%i;%i;%i;%i;%[^\n]", &mySpec.numScans, &mySpec.timeBetweenScans,
                         &mySpec.integrationTime, &mySpec.boxcarWidth, &mySpec.avgPerScan,
                          outBuf);
                 
-                //printf("trying to tokenize %s\n",outBuf);
+                printf("trying to tokenize %s\n",outBuf);
                 
                 //since sscanf is finnicky with strings, we just scan
                 //in one above, then tokenize that big string, knowing what
                 //order they will be in. Clunky but functional. 
+                //strsep catches empty strings so we use that 
+                //char *ptr = strtok(outBuf,";");                
                 char *ptr = strtok(outBuf,";");
                 if(ptr) {
 					strcpy(dn,ptr);
@@ -249,6 +268,7 @@ int main(int argc, char **argv)
                 if(ptr) {
 					strcpy(pn,ptr);
 				}
+				
                 ptr = strtok(NULL,";");
                 if(ptr) {
 					strcpy(ts,ptr);
@@ -264,7 +284,8 @@ int main(int argc, char **argv)
 				//now that we have gotten the strings, check to see
 				//if we also want to start the experiment:
 				ptr = strtok(NULL,";");
-				if(ptr) {
+				
+				if(ptr && strcmp(ptr,"Engage thrusters")) {
 					//if we get here, the command string included
 					//a request to start the experiment. 
 					initExperiment(mySpec, startStatusThread);
@@ -285,6 +306,32 @@ int main(int argc, char **argv)
                     exit(5);
                 }
                 break;
+                
+            case EXP_LIST:; //semicolon lets us declare vars in a switch statement
+				char *savedExperiments[10] = {"hey","friend","here","is","a","list","of","experiments","for","you"};  //= getExperimentList();
+				int numSavedExperiments = 10; //getExperimentListLength();
+				char buf[512];
+
+				
+				for(int i = 0; i < numSavedExperiments; i++) {
+					
+					if(i == 0) {
+						sprintf(buf,"%c;Header",EXP_LIST);
+						sendStringToClient(client,buf);
+						delay(50);
+						}
+						
+					sprintf(buf,"%c%s",EXP_LIST,savedExperiments[i]);
+					sendStringToClient(client,buf);
+					delay(50);
+					}
+					
+				sprintf(buf,"%c;Footer",EXP_LIST);
+				sendStringToClient(client,buf);
+
+				
+				
+				break;
 
             case 'F':
                 deviceConnected = sendStringToClient(client, "You have found a debug message! hehe :)\n");
@@ -323,7 +370,13 @@ int main(int argc, char **argv)
  */
 static int getClient(int serverSock)
 {
-
+	
+	//ideally this would securely open a connection but nonfunctional:
+	//return system("sudo ./py/advertiser.py");
+	
+	
+	//doing it in c WITHOUT uuid:
+	
     char inBuf[1023];
     // allocate socket
     struct sockaddr_rc loc_addr = {0}, rem_addr = {0};
@@ -349,11 +402,11 @@ static int getClient(int serverSock)
     int client = accept(serverSock, (struct sockaddr *) &rem_addr, &opt);
 
     ba2str(&rem_addr.rc_bdaddr, inBuf);
-    fprintf(stderr, "accepted connection from %s\n", inBuf);
+    fprintf(stderr, "accepted connection from %s with client = %i\n", inBuf,client);
     //fprintf(log, "accepted connection from %s\n", inBuf);
 
     return client;
-
+    
 }
 
 /*

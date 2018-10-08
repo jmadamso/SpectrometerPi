@@ -102,9 +102,9 @@ int getSpectrometerReading(double *inBuff)
         }
     }
 
-    //default to y=x
+    //default to this parabola to provide a peak of some sort
     for (i = 0; i < NUM_WAVELENGTHS; i++) {
-        spectrumArray[i] = (i);
+        spectrumArray[i] = -.1* (((i - 800)) * ((i - 800))) + 200;
         //inBuff[i] = i;
     }
 
@@ -123,15 +123,17 @@ int getSpectrometerReading(double *inBuff)
     return 0;
 }
 
-int getSpectrometerWavelength(int index) {
-	double wavelengths[NUM_WAVELENGTHS];
+
+int getSpectrometerWavelengthArray(double *wavelengths) {
 	if(specConnected) {
 		seabreeze_get_wavelengths(spectrometerIndex, &errorCode, wavelengths, NUM_WAVELENGTHS);
-		return wavelengths[index];
+		return errorCode;
 	} else {
-		return 666;
+		for(int i = 0; i < NUM_WAVELENGTHS; i++) {
+			wavelengths[i] = i;
+		}
+		return 0;
 	}
-
 }
 
 
@@ -243,6 +245,7 @@ static int Hardware_Init()
     //try to do other hardware
     printf("Initializing wiringPi, PWM and ADC...");
     if (wiringPiSetup() == -1) {
+		printf("failed at wiringpi setup!\n");	
         return -1;
     }
     //BASE sets the new pin base.

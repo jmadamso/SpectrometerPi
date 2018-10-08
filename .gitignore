@@ -1,5 +1,5 @@
 BTServer
-log_*.txt
+*.txt
 *.o
 push*
 pull*

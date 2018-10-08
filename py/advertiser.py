@@ -63,11 +63,12 @@ def main():
         
         #write the socket to a file 
         socketNumber = client_sock.fileno()
-        print "Socket = ",socketNumber
-        socketFile = "./socket.txt"
-        f = open(socketFile,'w')
-        f.write(str(socketNumber))
-        f.close()
+        print "client sock = ",socketNumber
+        exit(socketNumber)
+        #socketFile = "./socket.txt"
+        #f = open(socketFile,'w')
+        #f.write(str(socketNumber))
+        #f.close()
 
 
     except IOError:
